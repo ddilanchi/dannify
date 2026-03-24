@@ -516,9 +516,9 @@
 When recommending songs, format each one on its own line as:
 TRACK: Title - Artist
 
-You can include conversational text too. Mix recommendations with discussion. Ask follow-up questions to narrow down the vibe.
+Always recommend at least 25-30 tracks per response. Go deep — the user wants a long scrollable list to browse through, not just a handful. Cover variety within the vibe they asked for.
 
-Keep responses concise — suggest 5-10 tracks at a time unless they ask for more. You can discuss, refine, swap tracks, suggest alternatives, etc.`;
+You can include a brief intro sentence but keep text minimal — the tracks are the focus. Do NOT ask follow-up questions unless the user's request is truly ambiguous.`;
 
     const LIBRARY_KEYWORDS = /\b(my (music|library|taste|songs|tracks|playlists|artists|top|saved|likes|favorites|history)|what i (listen|like|play|enjoy)|based on (my|what i)|for me|know me|my vibe|my style|similar to what i)\b/i;
 
@@ -544,7 +544,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
             'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
-            model: model, max_tokens: 1024,
+            model: model, max_tokens: 2048,
             system: systemMsg,
             messages: messages,
           }),
@@ -701,6 +701,13 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
         }
         flushText();
 
+        // Add "Load more" button if there were tracks in this response
+        if (trackPromises.length > 0) {
+          html += `<div style="text-align:center; margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more like these</button>
+          </div>`;
+        }
+
         addChatMessage('assistant', html);
 
       } catch (err) {
@@ -713,6 +720,88 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
           addChatMessage('assistant', `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`);
           conversationHistory.pop();
         }
+      }
+    }
+
+    async function loadMore(btn) {
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+
+      conversationHistory.push({ role: 'user', content: 'Give me more tracks like those. Different ones, no repeats. At least 25 more.' });
+      showTyping();
+
+      try {
+        const response = await callLLM(conversationHistory);
+        hideTyping();
+        conversationHistory.push({ role: 'assistant', content: response });
+
+        const lines = response.split('\n');
+        let htmlParts = [];
+        let trackPromises = [];
+
+        for (const line of lines) {
+          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
+          if (trackMatch) {
+            const idx = trackPromises.length;
+            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
+            htmlParts.push({ type: 'track', idx, raw: line });
+          } else {
+            htmlParts.push({ type: 'text', content: line });
+          }
+        }
+
+        const resolved = await Promise.all(trackPromises);
+        let html = '';
+        let textBuffer = [];
+
+        function flushText() {
+          if (textBuffer.length) {
+            const t = textBuffer.join('\n').trim();
+            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+            textBuffer = [];
+          }
+        }
+
+        for (const part of htmlParts) {
+          if (part.type === 'text') {
+            textBuffer.push(part.content);
+          } else {
+            flushText();
+            const track = resolved[part.idx];
+            if (track) {
+              const isStaged = stagedTracks.some(s => s.uri === track.uri);
+              html += `
+                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+                  <img src="${track.img}" alt="">
+                  <div class="ts-info">
+                    <div class="ts-name">${esc(track.name)}</div>
+                    <div class="ts-artist">${esc(track.artist)}</div>
+                  </div>
+                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+                </div>`;
+            } else {
+              textBuffer.push(part.raw + ' (not found on Spotify)');
+            }
+          }
+        }
+        flushText();
+
+        if (trackPromises.length > 0) {
+          html += `<div style="text-align:center; margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more like these</button>
+          </div>`;
+        }
+
+        // Remove the old load more button
+        btn.parentElement.remove();
+        addChatMessage('assistant', html);
+
+      } catch (err) {
+        hideTyping();
+        btn.disabled = false;
+        btn.textContent = 'Load more like these';
+        toast('Error: ' + err.message);
+        conversationHistory.pop();
       }
     }
 
