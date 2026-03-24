@@ -704,7 +704,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         // Add "Load more" button if there were tracks in this response
         if (trackPromises.length > 0) {
           html += `<div style="text-align:center; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more like these</button>
+            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
           </div>`;
         }
 
@@ -788,7 +788,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
         if (trackPromises.length > 0) {
           html += `<div style="text-align:center; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more like these</button>
+            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
           </div>`;
         }
 
@@ -800,6 +800,95 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         hideTyping();
         btn.disabled = false;
         btn.textContent = 'Load more like these';
+        toast('Error: ' + err.message);
+        conversationHistory.pop();
+      }
+    }
+
+    async function loadMoreLikeStaged(btn) {
+      if (!stagedTracks.length) {
+        toast('Stage some tracks first so I know what you like');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+
+      const likedList = stagedTracks.map(t => `${t.name} - ${t.artist}`).join('\n');
+      const prompt = `The user staged these tracks as ones they like:\n${likedList}\n\nGive me 25+ more tracks that match this taste, still within the original vibe they asked for. No repeats of anything already suggested. Different ones only.`;
+
+      conversationHistory.push({ role: 'user', content: prompt });
+      showTyping();
+
+      try {
+        const response = await callLLM(conversationHistory);
+        hideTyping();
+        conversationHistory.push({ role: 'assistant', content: response });
+
+        const lines = response.split('\n');
+        let htmlParts = [];
+        let trackPromises = [];
+
+        for (const line of lines) {
+          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
+          if (trackMatch) {
+            const idx = trackPromises.length;
+            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
+            htmlParts.push({ type: 'track', idx, raw: line });
+          } else {
+            htmlParts.push({ type: 'text', content: line });
+          }
+        }
+
+        const resolved = await Promise.all(trackPromises);
+        let html = '';
+        let textBuffer = [];
+
+        function flushText() {
+          if (textBuffer.length) {
+            const t = textBuffer.join('\n').trim();
+            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+            textBuffer = [];
+          }
+        }
+
+        for (const part of htmlParts) {
+          if (part.type === 'text') {
+            textBuffer.push(part.content);
+          } else {
+            flushText();
+            const track = resolved[part.idx];
+            if (track) {
+              const isStaged = stagedTracks.some(s => s.uri === track.uri);
+              html += `
+                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+                  <img src="${track.img}" alt="">
+                  <div class="ts-info">
+                    <div class="ts-name">${esc(track.name)}</div>
+                    <div class="ts-artist">${esc(track.artist)}</div>
+                  </div>
+                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+                </div>`;
+            } else {
+              textBuffer.push(part.raw + ' (not found on Spotify)');
+            }
+          }
+        }
+        flushText();
+
+        if (trackPromises.length > 0) {
+          html += `<div style="text-align:center; margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
+          </div>`;
+        }
+
+        btn.parentElement.remove();
+        addChatMessage('assistant', html);
+
+      } catch (err) {
+        hideTyping();
+        btn.disabled = false;
+        btn.textContent = 'More like my picks';
         toast('Error: ' + err.message);
         conversationHistory.pop();
       }
