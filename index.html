@@ -427,8 +427,6 @@
     // ---- LLM ----
     const SYSTEM_PROMPT = `You are Dannify, a music recommendation assistant. The user wants help building a Spotify playlist.
 
-You have access to their Spotify library data below. Use it to understand their taste, but also suggest things they might not know.
-
 When recommending songs, format each one on its own line as:
 TRACK: Title - Artist
 
@@ -436,12 +434,20 @@ You can include conversational text too. Mix recommendations with discussion. As
 
 Keep responses concise — suggest 5-10 tracks at a time unless they ask for more. You can discuss, refine, swap tracks, suggest alternatives, etc.`;
 
+    const LIBRARY_KEYWORDS = /\b(my (music|library|taste|songs|tracks|playlists|artists|top|saved|likes|favorites|history)|what i (listen|like|play|enjoy)|based on (my|what i)|for me|know me|my vibe|my style|similar to what i)\b/i;
+
     async function callLLM(messages) {
       const provider = localStorage.getItem('llm_provider') || 'anthropic';
       const apiKey = localStorage.getItem('llm_api_key');
       if (!apiKey) throw new Error('NO_KEY');
 
-      const systemMsg = SYSTEM_PROMPT + (userLibrarySummary ? '\n\n--- USER SPOTIFY LIBRARY ---\n' + userLibrarySummary : '');
+      // Only include library context if the conversation references the user's taste
+      const convoText = messages.map(m => m.content).join(' ');
+      const wantsLibrary = LIBRARY_KEYWORDS.test(convoText);
+      let systemMsg = SYSTEM_PROMPT;
+      if (wantsLibrary && userLibrarySummary) {
+        systemMsg += '\n\nThe user referenced their taste/library. Here is their Spotify data:\n\n--- USER SPOTIFY LIBRARY ---\n' + userLibrarySummary;
+      }
 
       if (provider === 'anthropic') {
         const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -544,6 +550,12 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
       showTyping();
 
       try {
+        // Lazy-fetch library if user references their taste and we haven't yet
+        const convoText = conversationHistory.map(m => m.content).join(' ');
+        if (!userLibrarySummary && LIBRARY_KEYWORDS.test(convoText)) {
+          userLibrarySummary = await fetchLibrarySummary();
+        }
+
         const response = await callLLM(conversationHistory);
         hideTyping();
 
@@ -746,8 +758,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
         `;
         loadPlaylists();
 
-        // Fetch library in background for LLM context
-        fetchLibrarySummary().then(summary => { userLibrarySummary = summary; });
+        // Library fetched lazily when user references their taste
       } else {
         document.getElementById('user-area').innerHTML = `
           <button class="btn btn-green btn-sm" onclick="login()">Log in</button>
