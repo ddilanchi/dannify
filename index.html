@@ -92,7 +92,11 @@
     .msg.assistant .track-suggestion .ts-info { flex: 1; min-width: 0; }
     .msg.assistant .track-suggestion .ts-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .msg.assistant .track-suggestion .ts-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; flex-shrink: 0; }
+    .msg.assistant .track-suggestion .ts-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; cursor: pointer; }
+    .msg.assistant .track-suggestion .ts-refresh { color: #b3b3b3; font-size: 14px; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+    .msg.assistant .track-suggestion:hover .ts-refresh { opacity: 1; }
+    .msg.assistant .track-suggestion .ts-refresh:hover { color: #fff; }
     .msg.assistant .track-suggestion.added { opacity: 0.5; }
     .msg.assistant .track-suggestion.added .ts-add { color: #535353; }
 
@@ -347,16 +351,23 @@
     // ---- Settings ----
     const MODELS = {
       anthropic: [
-        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (recommended)' },
-        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 (cheapest)' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 (fastest/cheapest)' },
+        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+        { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
       ],
       openai: [
-        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (recommended)' },
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (fastest/cheapest)' },
         { id: 'gpt-4o', name: 'GPT-4o' },
+        { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano' },
+        { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
+        { id: 'gpt-4.1', name: 'GPT-4.1' },
+        { id: 'o4-mini', name: 'o4 Mini (reasoning)' },
       ],
       gemini: [
-        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (recommended)' },
-        { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite (cheapest)' },
+        { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite (fastest/cheapest)' },
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+        { id: 'gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash' },
+        { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro' },
       ],
     };
 
@@ -596,13 +607,16 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       return div;
     }
 
-    function showTyping() {
+    function showTyping(msg = 'Thinking...') {
       const container = document.getElementById('chat-messages');
-      const div = document.createElement('div');
-      div.className = 'typing';
-      div.id = 'typing-indicator';
-      div.innerHTML = '<div class="spinner"></div>Thinking...';
-      container.appendChild(div);
+      let div = document.getElementById('typing-indicator');
+      if (!div) {
+        div = document.createElement('div');
+        div.className = 'typing';
+        div.id = 'typing-indicator';
+        container.appendChild(div);
+      }
+      div.innerHTML = '<div class="spinner"></div>' + esc(msg);
       container.scrollTop = container.scrollHeight;
     }
 
@@ -625,6 +639,87 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       return null;
     }
 
+    // Shared: parse LLM response, resolve on Spotify with progress, return HTML
+    async function resolveResponse(response) {
+      const lines = response.split('\n');
+      let htmlParts = [];
+      let trackEntries = []; // {title, artist, idx}
+
+      for (const line of lines) {
+        const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
+        if (trackMatch) {
+          const idx = trackEntries.length;
+          trackEntries.push({ title: trackMatch[1].trim(), artist: trackMatch[2].trim() });
+          htmlParts.push({ type: 'track', idx, raw: line });
+        } else {
+          htmlParts.push({ type: 'text', content: line });
+        }
+      }
+
+      // Resolve tracks in batches of 5 with progress
+      const resolved = new Array(trackEntries.length).fill(null);
+      let done = 0;
+      const total = trackEntries.length;
+
+      async function resolveOne(i) {
+        resolved[i] = await resolveTrack(trackEntries[i].title, trackEntries[i].artist);
+        done++;
+        showTyping(`Finding tracks on Spotify... ${done}/${total}`);
+      }
+
+      if (total > 0) showTyping(`Finding tracks on Spotify... 0/${total}`);
+      // Run 5 at a time
+      for (let i = 0; i < total; i += 5) {
+        await Promise.all(trackEntries.slice(i, i + 5).map((_, j) => resolveOne(i + j)));
+      }
+
+      let html = '';
+      let textBuffer = [];
+
+      function flushText() {
+        if (textBuffer.length) {
+          const t = textBuffer.join('\n').trim();
+          if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+          textBuffer = [];
+        }
+      }
+
+      for (const part of htmlParts) {
+        if (part.type === 'text') {
+          textBuffer.push(part.content);
+        } else {
+          flushText();
+          const track = resolved[part.idx];
+          if (track) {
+            const isStaged = stagedTracks.some(s => s.uri === track.uri);
+            html += `
+              <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+                <img src="${track.img}" alt="">
+                <div class="ts-info">
+                  <div class="ts-name">${esc(track.name)}</div>
+                  <div class="ts-artist">${esc(track.artist)}</div>
+                </div>
+                <div class="ts-actions">
+                  <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
+                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+                </div>
+              </div>`;
+          } else {
+            textBuffer.push(part.raw + ' (not found on Spotify)');
+          }
+        }
+      }
+      flushText();
+
+      if (total > 0) {
+        html += `<div style="text-align:center; margin-top:12px;">
+          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
+        </div>`;
+      }
+
+      return html;
+    }
+
     async function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -644,70 +739,10 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         }
 
         const response = await callLLM(conversationHistory);
-        hideTyping();
-
         conversationHistory.push({ role: 'assistant', content: response });
 
-        // Parse TRACK: lines and resolve them on Spotify
-        const lines = response.split('\n');
-        let htmlParts = [];
-        let trackPromises = [];
-
-        for (const line of lines) {
-          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
-          if (trackMatch) {
-            const idx = trackPromises.length;
-            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
-            htmlParts.push({ type: 'track', idx, raw: line });
-          } else {
-            htmlParts.push({ type: 'text', content: line });
-          }
-        }
-
-        const resolved = await Promise.all(trackPromises);
-
-        let html = '';
-        let textBuffer = [];
-
-        function flushText() {
-          if (textBuffer.length) {
-            const t = textBuffer.join('\n').trim();
-            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
-            textBuffer = [];
-          }
-        }
-
-        for (const part of htmlParts) {
-          if (part.type === 'text') {
-            textBuffer.push(part.content);
-          } else {
-            flushText();
-            const track = resolved[part.idx];
-            if (track) {
-              const isStaged = stagedTracks.some(s => s.uri === track.uri);
-              html += `
-                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-                  <img src="${track.img}" alt="">
-                  <div class="ts-info">
-                    <div class="ts-name">${esc(track.name)}</div>
-                    <div class="ts-artist">${esc(track.artist)}</div>
-                  </div>
-                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-                </div>`;
-            } else {
-              textBuffer.push(part.raw + ' (not found on Spotify)');
-            }
-          }
-        }
-        flushText();
-
-        // Add "Load more" button if there were tracks in this response
-        if (trackPromises.length > 0) {
-          html += `<div style="text-align:center; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
-          </div>`;
-        }
-
+        const html = await resolveResponse(response);
+        hideTyping();
         addChatMessage('assistant', html);
 
       } catch (err) {
@@ -732,79 +767,65 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
       try {
         const response = await callLLM(conversationHistory);
-        hideTyping();
         conversationHistory.push({ role: 'assistant', content: response });
-
-        const lines = response.split('\n');
-        let htmlParts = [];
-        let trackPromises = [];
-
-        for (const line of lines) {
-          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
-          if (trackMatch) {
-            const idx = trackPromises.length;
-            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
-            htmlParts.push({ type: 'track', idx, raw: line });
-          } else {
-            htmlParts.push({ type: 'text', content: line });
-          }
-        }
-
-        const resolved = await Promise.all(trackPromises);
-        let html = '';
-        let textBuffer = [];
-
-        function flushText() {
-          if (textBuffer.length) {
-            const t = textBuffer.join('\n').trim();
-            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
-            textBuffer = [];
-          }
-        }
-
-        for (const part of htmlParts) {
-          if (part.type === 'text') {
-            textBuffer.push(part.content);
-          } else {
-            flushText();
-            const track = resolved[part.idx];
-            if (track) {
-              const isStaged = stagedTracks.some(s => s.uri === track.uri);
-              html += `
-                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-                  <img src="${track.img}" alt="">
-                  <div class="ts-info">
-                    <div class="ts-name">${esc(track.name)}</div>
-                    <div class="ts-artist">${esc(track.artist)}</div>
-                  </div>
-                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-                </div>`;
-            } else {
-              textBuffer.push(part.raw + ' (not found on Spotify)');
-            }
-          }
-        }
-        flushText();
-
-        if (trackPromises.length > 0) {
-          html += `<div style="text-align:center; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
-          </div>`;
-        }
-
-        // Remove the old load more button
+        const html = await resolveResponse(response);
+        hideTyping();
         btn.parentElement.remove();
         addChatMessage('assistant', html);
-
       } catch (err) {
         hideTyping();
         btn.disabled = false;
-        btn.textContent = 'Load more like these';
+        btn.textContent = 'Load more';
         toast('Error: ' + err.message);
         conversationHistory.pop();
       }
     }
 
+    // Replace a single track with a similar one using Spotify recommendations
+    async function refreshTrack(refreshBtn, uri) {
+      const suggestion = refreshBtn.closest('.track-suggestion');
+      const trackId = uri.split(':')[2];
+      refreshBtn.style.opacity = '1';
+      refreshBtn.innerHTML = '...';
+
+      try {
+        const data = await spotifyApi(`/recommendations?seed_tracks=${trackId}&limit=5`);
+        // Pick the first one that isn't already shown or staged
+        const existing = new Set(stagedTracks.map(s => s.uri));
+        existing.add(uri);
+        const pick = data?.tracks?.find(t => !existing.has(t.uri));
+
+        if (pick) {
+          const track = {
+            name: pick.name,
+            artist: pick.artists.map(a => a.name).join(', '),
+            uri: pick.uri,
+            img: pick.album.images[2]?.url || pick.album.images[0]?.url || '',
+          };
+          const isStaged = stagedTracks.some(s => s.uri === track.uri);
+          suggestion.outerHTML = `
+            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+              <img src="${track.img}" alt="">
+              <div class="ts-info">
+                <div class="ts-name">${esc(track.name)}</div>
+                <div class="ts-artist">${esc(track.artist)}</div>
+              </div>
+              <div class="ts-actions">
+                <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
+                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+              </div>
+            </div>`;
+        } else {
+          refreshBtn.innerHTML = '&#8635;';
+          toast('No alternatives found');
+        }
+      } catch (err) {
+        refreshBtn.innerHTML = '&#8635;';
+        toast('Error finding similar track');
+      }
+    }
+
+    // Use Spotify's recommendations API to get more tracks like the staged ones — no LLM needed
     async function loadMoreLikeStaged(btn) {
       if (!stagedTracks.length) {
         toast('Stage some tracks first so I know what you like');
@@ -813,75 +834,49 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
       btn.disabled = true;
       btn.textContent = 'Loading...';
-
-      const likedList = stagedTracks.map(t => `${t.name} - ${t.artist}`).join('\n');
-      const prompt = `The user staged these tracks as ones they like:\n${likedList}\n\nGive me 25+ more tracks that match this taste, still within the original vibe they asked for. No repeats of anything already suggested. Different ones only.`;
-
-      conversationHistory.push({ role: 'user', content: prompt });
-      showTyping();
+      showTyping('Getting Spotify recommendations...');
 
       try {
-        const response = await callLLM(conversationHistory);
+        // Spotify recommendations API takes up to 5 seed tracks
+        const seeds = stagedTracks.slice(-5).map(t => {
+          // Extract track ID from URI (spotify:track:XXXXX)
+          return t.uri.split(':')[2];
+        }).join(',');
+
+        const data = await spotifyApi(`/recommendations?seed_tracks=${seeds}&limit=30`);
+        if (!data?.tracks?.length) {
+          hideTyping();
+          btn.disabled = false;
+          btn.textContent = 'More like my picks';
+          toast('No recommendations found');
+          return;
+        }
+
+        let html = '<p>Based on your picks:</p>';
+        for (const t of data.tracks) {
+          const track = {
+            name: t.name,
+            artist: t.artists.map(a => a.name).join(', '),
+            uri: t.uri,
+            img: t.album.images[2]?.url || t.album.images[0]?.url || '',
+          };
+          const isStaged = stagedTracks.some(s => s.uri === track.uri);
+          html += `
+            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+              <img src="${track.img}" alt="">
+              <div class="ts-info">
+                <div class="ts-name">${esc(track.name)}</div>
+                <div class="ts-artist">${esc(track.artist)}</div>
+              </div>
+              <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+            </div>`;
+        }
+
+        html += `<div style="text-align:center; margin-top:12px;">
+          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
+        </div>`;
+
         hideTyping();
-        conversationHistory.push({ role: 'assistant', content: response });
-
-        const lines = response.split('\n');
-        let htmlParts = [];
-        let trackPromises = [];
-
-        for (const line of lines) {
-          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
-          if (trackMatch) {
-            const idx = trackPromises.length;
-            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
-            htmlParts.push({ type: 'track', idx, raw: line });
-          } else {
-            htmlParts.push({ type: 'text', content: line });
-          }
-        }
-
-        const resolved = await Promise.all(trackPromises);
-        let html = '';
-        let textBuffer = [];
-
-        function flushText() {
-          if (textBuffer.length) {
-            const t = textBuffer.join('\n').trim();
-            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
-            textBuffer = [];
-          }
-        }
-
-        for (const part of htmlParts) {
-          if (part.type === 'text') {
-            textBuffer.push(part.content);
-          } else {
-            flushText();
-            const track = resolved[part.idx];
-            if (track) {
-              const isStaged = stagedTracks.some(s => s.uri === track.uri);
-              html += `
-                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-                  <img src="${track.img}" alt="">
-                  <div class="ts-info">
-                    <div class="ts-name">${esc(track.name)}</div>
-                    <div class="ts-artist">${esc(track.artist)}</div>
-                  </div>
-                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-                </div>`;
-            } else {
-              textBuffer.push(part.raw + ' (not found on Spotify)');
-            }
-          }
-        }
-        flushText();
-
-        if (trackPromises.length > 0) {
-          html += `<div style="text-align:center; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
-          </div>`;
-        }
-
         btn.parentElement.remove();
         addChatMessage('assistant', html);
 
@@ -890,7 +885,6 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         btn.disabled = false;
         btn.textContent = 'More like my picks';
         toast('Error: ' + err.message);
-        conversationHistory.pop();
       }
     }
 
