@@ -300,10 +300,14 @@
     <div class="modal">
       <h2>Settings</h2>
       <label>LLM Provider</label>
-      <select id="setting-provider">
+      <select id="setting-provider" onchange="updateModelDropdown()">
         <option value="anthropic">Anthropic (Claude)</option>
         <option value="openai">OpenAI (GPT)</option>
         <option value="gemini">Google (Gemini)</option>
+      </select>
+      <label>Model</label>
+      <select id="setting-model">
+        <!-- populated dynamically -->
       </select>
       <label>API Key</label>
       <input type="password" id="setting-api-key" placeholder="Paste your API key...">
@@ -341,14 +345,40 @@
     let userLibrarySummary = '';
 
     // ---- Settings ----
+    const MODELS = {
+      anthropic: [
+        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (recommended)' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 (cheapest)' },
+      ],
+      openai: [
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (recommended)' },
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ],
+      gemini: [
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (recommended)' },
+        { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite (cheapest)' },
+      ],
+    };
+
+    function updateModelDropdown() {
+      const provider = document.getElementById('setting-provider').value;
+      const select = document.getElementById('setting-model');
+      const saved = localStorage.getItem('llm_model');
+      select.innerHTML = MODELS[provider].map(m =>
+        `<option value="${m.id}" ${m.id === saved ? 'selected' : ''}>${m.name}</option>`
+      ).join('');
+    }
+
     function openSettings() {
       document.getElementById('setting-provider').value = localStorage.getItem('llm_provider') || 'anthropic';
       document.getElementById('setting-api-key').value = localStorage.getItem('llm_api_key') || '';
+      updateModelDropdown();
       document.getElementById('settings-modal').classList.add('open');
     }
     function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
     function saveSettings() {
       localStorage.setItem('llm_provider', document.getElementById('setting-provider').value);
+      localStorage.setItem('llm_model', document.getElementById('setting-model').value);
       const key = document.getElementById('setting-api-key').value.trim();
       if (key) localStorage.setItem('llm_api_key', key);
       else localStorage.removeItem('llm_api_key');
@@ -494,6 +524,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
 
     async function callLLM(messages) {
       const provider = localStorage.getItem('llm_provider') || 'anthropic';
+      const model = localStorage.getItem('llm_model') || MODELS[provider][0].id;
       const apiKey = localStorage.getItem('llm_api_key');
       if (!apiKey) throw new Error('NO_KEY');
 
@@ -513,7 +544,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
             'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 1024,
+            model: model, max_tokens: 1024,
             system: systemMsg,
             messages: messages,
           }),
@@ -527,7 +558,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: model,
             messages: [{ role: 'system', content: systemMsg }, ...messages],
           }),
         });
@@ -540,7 +571,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
           role: m.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: m.content }],
         }));
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
