@@ -495,7 +495,7 @@
       let summary = '';
 
       if (playlists?.items?.length) {
-        summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks.total} tracks)`).join('\n') + '\n\n';
+        summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks?.total || 0} tracks)`).join('\n') + '\n\n';
       }
       if (topArtists?.items?.length) {
         summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${a.genres.slice(0,3).join(', ')})`).join('\n') + '\n\n';
@@ -792,7 +792,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
       if (!data) return;
       const select = document.getElementById('playlist-select');
       select.innerHTML = '<option value="">Select a playlist...</option>' +
-        (data.items || []).map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks.total})</option>`).join('');
+        (data.items || []).map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
     }
 
     async function createPlaylist() {
