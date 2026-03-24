@@ -192,6 +192,36 @@
     }
     .toast.show { transform: translateY(0); opacity: 1; }
 
+    /* Setup banner */
+    .setup-banner {
+      background: #1a1a1a;
+      border: 1px solid #1db954;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 16px 24px 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .setup-banner .setup-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+    .setup-banner .setup-text {
+      flex: 1;
+    }
+    .setup-banner .setup-text strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+    .setup-banner .setup-text p {
+      color: #b3b3b3;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
     @media (max-width: 768px) {
       .app.active { flex-direction: column; }
       .staging-col { width: 100%; max-height: 40vh; border-top: 1px solid #282828; }
@@ -220,6 +250,20 @@
     <!-- Chat column -->
     <div class="chat-col">
       <div class="chat-messages" id="chat-messages">
+        <div class="setup-banner" id="setup-banner" style="display:none;">
+          <div class="setup-icon">&#128273;</div>
+          <div class="setup-text">
+            <strong>One more step — you need an AI key</strong>
+            <p>Dannify uses AI to recommend music. You'll need a free API key from one of these providers:</p>
+            <p style="margin-top:8px;">
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#1db954;">Anthropic (Claude)</a> &middot;
+              <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1db954;">OpenAI (GPT)</a> &middot;
+              <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#1db954;">Google (Gemini)</a>
+            </p>
+            <p style="margin-top:6px;">Sign up, grab a key, then click the button below to paste it in.</p>
+          </div>
+          <button class="btn btn-green btn-sm" onclick="openSettings()" style="flex-shrink:0;">Set up key</button>
+        </div>
         <div class="msg assistant">Hey! Tell me what kind of music you're in the mood for and I'll find tracks for you. You can keep refining — click the + on any track to stage it.</div>
       </div>
       <div class="chat-input-area">
@@ -263,7 +307,13 @@
       </select>
       <label>API Key</label>
       <input type="password" id="setting-api-key" placeholder="Paste your API key...">
-      <p style="color:#535353; font-size:12px; margin-top:6px;">Stored in your browser only. Sent directly to the provider's API.</p>
+      <p style="color:#b3b3b3; font-size:12px; margin-top:8px;">
+        Get a key:
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#1db954;">Anthropic</a> &middot;
+        <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1db954;">OpenAI</a> &middot;
+        <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#1db954;">Google Gemini</a>
+      </p>
+      <p style="color:#535353; font-size:11px; margin-top:4px;">Stored in your browser only. Never sent anywhere except the provider.</p>
       <div class="modal-actions">
         <button class="btn btn-outline btn-sm" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-green btn-sm" onclick="saveSettings()">Save</button>
@@ -303,7 +353,13 @@
       if (key) localStorage.setItem('llm_api_key', key);
       else localStorage.removeItem('llm_api_key');
       closeSettings();
+      updateSetupBanner();
       toast('Settings saved');
+    }
+
+    function updateSetupBanner() {
+      const banner = document.getElementById('setup-banner');
+      if (banner) banner.style.display = localStorage.getItem('llm_api_key') ? 'none' : 'flex';
     }
 
     // ---- PKCE OAuth ----
@@ -757,6 +813,7 @@ Keep responses concise — suggest 5-10 tracks at a time unless they ask for mor
           <button class="btn btn-outline btn-sm" onclick="logout()">Log out</button>
         `;
         loadPlaylists();
+        updateSetupBanner();
 
         // Library fetched lazily when user references their taste
       } else {
