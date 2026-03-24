@@ -82,16 +82,22 @@
     }
     .msg.user { background: #1db954; color: #000; align-self: flex-end; border-bottom-right-radius: 4px; }
     .msg.assistant { background: #282828; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg.assistant .track-suggestions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+    }
     .msg.assistant .track-suggestion {
-      display: flex; align-items: center; gap: 10px;
-      background: #1a1a1a; border-radius: 8px; padding: 8px 12px; margin-top: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+      background: #1a1a1a; border-radius: 6px; padding: 6px 10px; cursor: pointer;
       transition: background 0.15s;
     }
     .msg.assistant .track-suggestion:hover { background: #333; }
-    .msg.assistant .track-suggestion img { width: 40px; height: 40px; border-radius: 4px; }
+    .msg.assistant .track-suggestion img { width: 32px; height: 32px; border-radius: 3px; flex-shrink: 0; }
     .msg.assistant .track-suggestion .ts-info { flex: 1; min-width: 0; }
-    .msg.assistant .track-suggestion .ts-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .msg.assistant .track-suggestion .ts-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg.assistant .track-suggestion .ts-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg.assistant .track-suggestion .ts-artist { color: #b3b3b3; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .msg.assistant .track-suggestion .ts-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
     .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; cursor: pointer; }
     .msg.assistant .track-suggestion .ts-refresh { color: #b3b3b3; font-size: 14px; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
@@ -509,7 +515,7 @@
         summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks?.total || 0} tracks)`).join('\n') + '\n\n';
       }
       if (topArtists?.items?.length) {
-        summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${a.genres.slice(0,3).join(', ')})`).join('\n') + '\n\n';
+        summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${(a.genres || []).slice(0,3).join(', ') || 'no genre'})`).join('\n') + '\n\n';
       }
       if (topTracks?.items?.length) {
         summary += 'TOP TRACKS:\n' + topTracks.items.map(t => `- ${t.name} by ${t.artists.map(a=>a.name).join(', ')}`).join('\n') + '\n\n';
@@ -675,6 +681,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
       let html = '';
       let textBuffer = [];
+      let trackBuffer = [];
 
       function flushText() {
         if (textBuffer.length) {
@@ -684,15 +691,23 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         }
       }
 
+      function flushTracks() {
+        if (trackBuffer.length) {
+          html += '<div class="track-suggestions-grid">' + trackBuffer.join('') + '</div>';
+          trackBuffer = [];
+        }
+      }
+
       for (const part of htmlParts) {
         if (part.type === 'text') {
+          flushTracks();
           textBuffer.push(part.content);
         } else {
           flushText();
           const track = resolved[part.idx];
           if (track) {
             const isStaged = stagedTracks.some(s => s.uri === track.uri);
-            html += `
+            trackBuffer.push(`
               <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
                 <img src="${track.img}" alt="">
                 <div class="ts-info">
@@ -703,13 +718,14 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
                   <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
                   <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
                 </div>
-              </div>`;
+              </div>`);
           } else {
             textBuffer.push(part.raw + ' (not found on Spotify)');
           }
         }
       }
       flushText();
+      flushTracks();
 
       if (total > 0) {
         html += `<div style="text-align:center; margin-top:12px;">
@@ -852,7 +868,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           return;
         }
 
-        let html = '<p>Based on your picks:</p>';
+        let html = '<p>Based on your picks:</p><div class="track-suggestions-grid">';
         for (const t of data.tracks) {
           const track = {
             name: t.name,
@@ -868,9 +884,13 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
                 <div class="ts-name">${esc(track.name)}</div>
                 <div class="ts-artist">${esc(track.artist)}</div>
               </div>
-              <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+              <div class="ts-actions">
+                <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
+                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+              </div>
             </div>`;
         }
+        html += '</div>';
 
         html += `<div style="text-align:center; margin-top:12px;">
           <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
