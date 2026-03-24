@@ -98,11 +98,8 @@
     .msg.assistant .track-suggestion .ts-info { flex: 1; min-width: 0; }
     .msg.assistant .track-suggestion .ts-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .msg.assistant .track-suggestion .ts-artist { color: #b3b3b3; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .msg.assistant .track-suggestion .ts-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-    .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; cursor: pointer; }
-    .msg.assistant .track-suggestion .ts-refresh { color: #b3b3b3; font-size: 14px; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
-    .msg.assistant .track-suggestion:hover .ts-refresh { opacity: 1; }
-    .msg.assistant .track-suggestion .ts-refresh:hover { color: #fff; }
+    .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+    .msg.assistant .batch-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
     .msg.assistant .track-suggestion.added { opacity: 0.5; }
     .msg.assistant .track-suggestion.added .ts-add { color: #535353; }
 
@@ -497,7 +494,9 @@
         if (await refreshToken()) return spotifyApi(path, opts);
         logout(); return null;
       }
-      return res.json();
+      if (res.status === 204 || res.headers.get('content-length') === '0') return {};
+      const text = await res.text();
+      try { return JSON.parse(text); } catch { return {}; }
     }
 
     // ---- Fetch user library for LLM context ----
@@ -714,10 +713,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
                   <div class="ts-name">${esc(track.name)}</div>
                   <div class="ts-artist">${esc(track.artist)}</div>
                 </div>
-                <div class="ts-actions">
-                  <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
-                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-                </div>
+                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
               </div>`);
           } else {
             textBuffer.push(part.raw + ' (not found on Spotify)');
@@ -728,8 +724,11 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       flushTracks();
 
       if (total > 0) {
-        html += `<div style="text-align:center; margin-top:12px;">
-          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
+        html += `<div class="batch-actions">
+          <button class="btn btn-green btn-sm" onclick="addAllFromMessage(this)">Add all</button>
+          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button>
+          <button class="btn btn-outline btn-sm" onclick="refreshAllTracks(this)">&#8635; Refresh all</button>
+          <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
         </div>`;
       }
 
@@ -797,47 +796,74 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       }
     }
 
-    // Replace a single track with a similar one using Spotify recommendations
-    async function refreshTrack(refreshBtn, uri) {
-      const suggestion = refreshBtn.closest('.track-suggestion');
-      const trackId = uri.split(':')[2];
-      refreshBtn.style.opacity = '1';
-      refreshBtn.innerHTML = '...';
+    // Add all tracks from a message to staging
+    function addAllFromMessage(btn) {
+      const msg = btn.closest('.msg');
+      const suggestions = msg.querySelectorAll('.track-suggestion:not(.added)');
+      suggestions.forEach(el => stageFromSuggestion(el));
+      toast(`Added ${suggestions.length} tracks`);
+    }
+
+    // Replace all listed tracks with similar ones using Spotify recs
+    async function refreshAllTracks(btn) {
+      const msg = btn.closest('.msg');
+      const suggestions = Array.from(msg.querySelectorAll('.track-suggestion'));
+      if (!suggestions.length) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Refreshing...';
+      showTyping('Finding similar tracks...');
 
       try {
-        const data = await spotifyApi(`/recommendations?seed_tracks=${trackId}&limit=5`);
-        // Pick the first one that isn't already shown or staged
-        const existing = new Set(stagedTracks.map(s => s.uri));
-        existing.add(uri);
-        const pick = data?.tracks?.find(t => !existing.has(t.uri));
+        // Use up to 5 random tracks from the list as seeds
+        const uris = suggestions.map(el => el.dataset.uri).filter(Boolean);
+        const seedUris = uris.sort(() => Math.random() - 0.5).slice(0, 5);
+        const seedIds = seedUris.map(u => u.split(':')[2]).join(',');
 
-        if (pick) {
-          const track = {
-            name: pick.name,
-            artist: pick.artists.map(a => a.name).join(', '),
-            uri: pick.uri,
-            img: pick.album.images[2]?.url || pick.album.images[0]?.url || '',
-          };
-          const isStaged = stagedTracks.some(s => s.uri === track.uri);
-          suggestion.outerHTML = `
-            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-              <img src="${track.img}" alt="">
-              <div class="ts-info">
-                <div class="ts-name">${esc(track.name)}</div>
-                <div class="ts-artist">${esc(track.artist)}</div>
-              </div>
-              <div class="ts-actions">
-                <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
-                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-              </div>
-            </div>`;
-        } else {
-          refreshBtn.innerHTML = '&#8635;';
+        const data = await spotifyApi(`/recommendations?seed_tracks=${seedIds}&limit=${suggestions.length}`);
+        hideTyping();
+
+        if (!data?.tracks?.length) {
+          btn.disabled = false;
+          btn.textContent = '\u21BB Refresh all';
           toast('No alternatives found');
+          return;
         }
+
+        // Find the grid container and replace its contents
+        const grid = msg.querySelector('.track-suggestions-grid');
+        if (grid) {
+          let newHtml = '';
+          for (const t of data.tracks) {
+            const track = {
+              name: t.name,
+              artist: t.artists.map(a => a.name).join(', '),
+              uri: t.uri,
+              img: t.album.images[2]?.url || t.album.images[0]?.url || '',
+            };
+            const isStaged = stagedTracks.some(s => s.uri === track.uri);
+            newHtml += `
+              <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+                <img src="${track.img}" alt="">
+                <div class="ts-info">
+                  <div class="ts-name">${esc(track.name)}</div>
+                  <div class="ts-artist">${esc(track.artist)}</div>
+                </div>
+                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+              </div>`;
+          }
+          grid.innerHTML = newHtml;
+        }
+
+        btn.disabled = false;
+        btn.textContent = '\u21BB Refresh all';
+        toast('Tracks refreshed');
+
       } catch (err) {
-        refreshBtn.innerHTML = '&#8635;';
-        toast('Error finding similar track');
+        hideTyping();
+        btn.disabled = false;
+        btn.textContent = '\u21BB Refresh all';
+        toast('Error: ' + err.message);
       }
     }
 
@@ -892,8 +918,11 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         }
         html += '</div>';
 
-        html += `<div style="text-align:center; margin-top:12px;">
-          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button> <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
+        html += `<div class="batch-actions">
+          <button class="btn btn-green btn-sm" onclick="addAllFromMessage(this)">Add all</button>
+          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button>
+          <button class="btn btn-outline btn-sm" onclick="refreshAllTracks(this)">&#8635; Refresh all</button>
+          <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
         </div>`;
 
         hideTyping();
