@@ -60,7 +60,7 @@
     .app { display: none; flex: 1; overflow: hidden; }
     .app.active { display: flex; }
 
-    .chat-col {
+    .left-col {
       flex: 1; display: flex; flex-direction: column;
       border-right: 1px solid #282828; min-width: 0;
     }
@@ -69,6 +69,21 @@
       width: 380px; flex-shrink: 0; display: flex; flex-direction: column;
       background: #0a0a0a;
     }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex; background: #181818; border-bottom: 1px solid #282828; flex-shrink: 0;
+    }
+    .tab-bar button {
+      flex: 1; padding: 12px; background: none; border: none; color: #b3b3b3;
+      font-weight: 600; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab-bar button:hover { color: #fff; }
+    .tab-bar button.active { color: #1db954; border-bottom-color: #1db954; }
+
+    .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .tab-content.active { display: flex; }
 
     /* Chat */
     .chat-messages {
@@ -83,10 +98,7 @@
     .msg.user { background: #1db954; color: #000; align-self: flex-end; border-bottom-right-radius: 4px; }
     .msg.assistant { background: #282828; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; }
     .msg.assistant .track-suggestions-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px;
-      margin-top: 8px;
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 8px;
     }
     .msg.assistant .track-suggestion {
       display: flex; align-items: center; gap: 8px;
@@ -105,7 +117,7 @@
 
     .chat-input-area {
       padding: 16px 24px; background: #181818; border-top: 1px solid #282828;
-      display: flex; gap: 8px;
+      display: flex; gap: 8px; flex-shrink: 0;
     }
     .chat-input-area input {
       flex: 1; padding: 12px 18px; border-radius: 24px; border: none;
@@ -125,9 +137,7 @@
     .staging-header h2 { font-size: 18px; font-weight: 700; }
     .staging-count { color: #b3b3b3; font-size: 13px; }
 
-    .staging-tracks {
-      flex: 1; overflow-y: auto; padding: 8px;
-    }
+    .staging-tracks { flex: 1; overflow-y: auto; padding: 8px; }
 
     .staged-track {
       display: flex; align-items: center; gap: 10px;
@@ -155,9 +165,7 @@
       border-radius: 8px; padding: 10px 14px; font-size: 14px; outline: none;
     }
 
-    .staging-actions .create-row {
-      display: flex; gap: 8px;
-    }
+    .staging-actions .create-row { display: flex; gap: 8px; }
 
     .staging-actions .create-row input {
       flex: 1; padding: 8px 12px; border-radius: 8px; border: none;
@@ -169,12 +177,69 @@
       color: #535353; font-size: 14px; text-align: center; padding: 40px;
     }
 
-    /* Library sidebar in chat */
-    .library-toggle {
-      color: #b3b3b3; font-size: 12px; cursor: pointer; padding: 8px 24px;
-      background: #181818; border-top: 1px solid #282828;
+    /* Tools panel */
+    .tools-panel {
+      flex: 1; overflow-y: auto; padding: 24px;
     }
-    .library-toggle:hover { color: #fff; }
+
+    .tool-card {
+      background: #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    }
+    .tool-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .tool-card .tool-desc { color: #b3b3b3; font-size: 13px; margin-bottom: 12px; }
+
+    .tool-card select {
+      width: 100%; background: #282828; color: #fff; border: none;
+      border-radius: 8px; padding: 10px 14px; font-size: 14px; outline: none; margin-bottom: 8px;
+    }
+
+    .tool-card .tool-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .tool-result {
+      background: #121212; border-radius: 8px; padding: 16px; margin-top: 12px;
+      font-size: 13px; max-height: 400px; overflow-y: auto;
+    }
+
+    .tool-result table { width: 100%; border-collapse: collapse; }
+    .tool-result th { text-align: left; color: #b3b3b3; font-size: 11px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #282828; }
+    .tool-result td { padding: 6px 8px; border-bottom: 1px solid #1a1a1a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+
+    .tool-result .stat-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .stat-box {
+      background: #1a1a1a; border-radius: 8px; padding: 12px; text-align: center;
+    }
+    .stat-box .stat-val { font-size: 24px; font-weight: 800; color: #1db954; }
+    .stat-box .stat-label { font-size: 11px; color: #b3b3b3; margin-top: 4px; }
+
+    .dupe-item {
+      display: flex; align-items: center; gap: 10px; padding: 6px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .dupe-item img { width: 32px; height: 32px; border-radius: 3px; }
+    .dupe-item .dupe-info { flex: 1; min-width: 0; }
+    .dupe-item .dupe-name { font-size: 13px; font-weight: 600; }
+    .dupe-item .dupe-detail { font-size: 11px; color: #b3b3b3; }
+
+    .search-input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .search-input-row input {
+      flex: 1; padding: 10px 14px; border-radius: 8px; border: none;
+      background: #282828; color: #fff; font-size: 14px; outline: none;
+    }
+
+    .merge-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .merge-row select { flex: 1; }
+
+    /* Setup banner */
+    .setup-banner {
+      background: #1a1a1a; border: 1px solid #1db954; border-radius: 12px;
+      padding: 20px 24px; margin: 16px 24px 0; display: flex; align-items: center; gap: 16px;
+    }
+    .setup-banner .setup-icon { font-size: 28px; flex-shrink: 0; }
+    .setup-banner .setup-text { flex: 1; }
+    .setup-banner .setup-text strong { display: block; margin-bottom: 4px; font-size: 15px; }
+    .setup-banner .setup-text p { color: #b3b3b3; font-size: 13px; line-height: 1.5; margin: 0; }
 
     /* Settings modal */
     .modal-overlay {
@@ -199,40 +264,10 @@
     }
     .toast.show { transform: translateY(0); opacity: 1; }
 
-    /* Setup banner */
-    .setup-banner {
-      background: #1a1a1a;
-      border: 1px solid #1db954;
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin: 16px 24px 0;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .setup-banner .setup-icon {
-      font-size: 28px;
-      flex-shrink: 0;
-    }
-    .setup-banner .setup-text {
-      flex: 1;
-    }
-    .setup-banner .setup-text strong {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 15px;
-    }
-    .setup-banner .setup-text p {
-      color: #b3b3b3;
-      font-size: 13px;
-      line-height: 1.5;
-      margin: 0;
-    }
-
     @media (max-width: 768px) {
       .app.active { flex-direction: column; }
       .staging-col { width: 100%; max-height: 40vh; border-top: 1px solid #282828; }
-      .chat-col { border-right: none; }
+      .left-col { border-right: none; }
     }
   </style>
 </head>
@@ -254,28 +289,130 @@
   </main>
 
   <main class="app" id="app">
-    <!-- Chat column -->
-    <div class="chat-col">
-      <div class="chat-messages" id="chat-messages">
-        <div class="setup-banner" id="setup-banner" style="display:none;">
-          <div class="setup-icon">&#128273;</div>
-          <div class="setup-text">
-            <strong>One more step — you need an AI key</strong>
-            <p>Dannify uses AI to recommend music. You'll need a free API key from one of these providers:</p>
-            <p style="margin-top:8px;">
-              <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#1db954;">Anthropic (Claude)</a> &middot;
-              <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1db954;">OpenAI (GPT)</a> &middot;
-              <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#1db954;">Google (Gemini)</a>
-            </p>
-            <p style="margin-top:6px;">Sign up, grab a key, then click "Set up key" to paste it in.</p>
-          </div>
-          <button class="btn btn-green btn-sm" onclick="openSettings()" style="flex-shrink:0;">Set up key</button>
-        </div>
-        <div class="msg assistant">Hey! Tell me what kind of music you're in the mood for and I'll find tracks for you. You can keep refining — click the + on any track to stage it.</div>
+    <!-- Left column with tabs -->
+    <div class="left-col">
+      <div class="tab-bar">
+        <button class="active" onclick="switchTab('chat', this)">Chat</button>
+        <button onclick="switchTab('tools', this)">Tools</button>
       </div>
-      <div class="chat-input-area">
-        <input type="text" id="chat-input" placeholder="Describe what you want to hear..." autocomplete="off">
-        <button class="btn btn-green btn-sm" onclick="sendMessage()">Send</button>
+
+      <!-- Chat tab -->
+      <div class="tab-content active" id="tab-chat">
+        <div class="chat-messages" id="chat-messages">
+          <div class="setup-banner" id="setup-banner" style="display:none;">
+            <div class="setup-icon">&#128273;</div>
+            <div class="setup-text">
+              <strong>One more step — you need an AI key</strong>
+              <p>Dannify uses AI to recommend music. You'll need a free API key from one of these providers:</p>
+              <p style="margin-top:8px;">
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#1db954;">Anthropic (Claude)</a> &middot;
+                <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1db954;">OpenAI (GPT)</a> &middot;
+                <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#1db954;">Google (Gemini)</a>
+              </p>
+              <p style="margin-top:6px;">Sign up, grab a key, then click "Set up key" to paste it in.</p>
+            </div>
+            <button class="btn btn-green btn-sm" onclick="openSettings()" style="flex-shrink:0;">Set up key</button>
+          </div>
+          <div class="msg assistant">Hey! Tell me what kind of music you're in the mood for and I'll find tracks for you. You can keep refining — click the + on any track to stage it.</div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="chat-input" placeholder="Describe what you want to hear..." autocomplete="off">
+          <button class="btn btn-green btn-sm" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+
+      <!-- Tools tab -->
+      <div class="tab-content" id="tab-tools">
+        <div class="tools-panel">
+
+          <!-- Duplicate Finder -->
+          <div class="tool-card">
+            <h3>Duplicate Finder</h3>
+            <p class="tool-desc">Find and remove duplicate tracks in a playlist</p>
+            <select id="dupe-playlist"></select>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="findDuplicates()">Scan</button>
+              <button class="btn btn-red btn-sm" id="dupe-remove-btn" style="display:none;" onclick="removeDuplicates()">Remove duplicates</button>
+            </div>
+            <div class="tool-result" id="dupe-result" style="display:none;"></div>
+          </div>
+
+          <!-- Playlist Analytics -->
+          <div class="tool-card">
+            <h3>Playlist Analytics</h3>
+            <p class="tool-desc">See BPM, energy, mood, danceability, and genre breakdown</p>
+            <select id="analytics-playlist"></select>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="analyzePlaylist()">Analyze</button>
+            </div>
+            <div class="tool-result" id="analytics-result" style="display:none;"></div>
+          </div>
+
+          <!-- Sort Playlist -->
+          <div class="tool-card">
+            <h3>Sort Playlist</h3>
+            <p class="tool-desc">Reorder a playlist by BPM, energy, danceability, or mood</p>
+            <select id="sort-playlist"></select>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <select id="sort-attr" style="flex:1; background:#282828; color:#fff; border:none; border-radius:8px; padding:10px; font-size:14px; outline:none;">
+                <option value="tempo">BPM (tempo)</option>
+                <option value="energy">Energy</option>
+                <option value="danceability">Danceability</option>
+                <option value="valence">Mood (valence)</option>
+                <option value="acousticness">Acousticness</option>
+                <option value="instrumentalness">Instrumentalness</option>
+              </select>
+              <select id="sort-dir" style="width:120px; background:#282828; color:#fff; border:none; border-radius:8px; padding:10px; font-size:14px; outline:none;">
+                <option value="asc">Low → High</option>
+                <option value="desc">High → Low</option>
+              </select>
+            </div>
+            <div class="tool-actions" style="margin-top:8px;">
+              <button class="btn btn-green btn-sm" onclick="sortPlaylist()">Sort & Save</button>
+            </div>
+            <div class="tool-result" id="sort-result" style="display:none;"></div>
+          </div>
+
+          <!-- Merge Playlists -->
+          <div class="tool-card">
+            <h3>Merge Playlists</h3>
+            <p class="tool-desc">Combine two playlists into a new one (with dedup)</p>
+            <div class="merge-row">
+              <select id="merge-a"></select>
+              <span style="color:#b3b3b3;">+</span>
+              <select id="merge-b"></select>
+            </div>
+            <div class="search-input-row">
+              <input type="text" id="merge-name" placeholder="New playlist name...">
+            </div>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="mergePlaylists()">Merge</button>
+            </div>
+            <div class="tool-result" id="merge-result" style="display:none;"></div>
+          </div>
+
+          <!-- Cross-Playlist Search -->
+          <div class="tool-card">
+            <h3>Find Song Across Playlists</h3>
+            <p class="tool-desc">Search which of your playlists contain a song</p>
+            <div class="search-input-row">
+              <input type="text" id="xsearch-query" placeholder="Song name or artist...">
+              <button class="btn btn-green btn-sm" onclick="crossPlaylistSearch()">Search</button>
+            </div>
+            <div class="tool-result" id="xsearch-result" style="display:none;"></div>
+          </div>
+
+          <!-- Export Playlist -->
+          <div class="tool-card">
+            <h3>Export Playlist</h3>
+            <p class="tool-desc">Download a playlist as CSV</p>
+            <select id="export-playlist"></select>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="exportPlaylist()">Export CSV</button>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
 
@@ -313,9 +450,7 @@
         <option value="gemini">Google (Gemini)</option>
       </select>
       <label>Model</label>
-      <select id="setting-model">
-        <!-- populated dynamically -->
-      </select>
+      <select id="setting-model"></select>
       <label>API Key</label>
       <input type="password" id="setting-api-key" placeholder="Paste your API key...">
       <p style="color:#b3b3b3; font-size:12px; margin-top:8px;">
@@ -347,9 +482,19 @@
 
     let accessToken = null;
     let userId = null;
-    let stagedTracks = []; // {name, artist, uri, img}
+    let stagedTracks = [];
     let conversationHistory = [];
     let userLibrarySummary = '';
+    let cachedPlaylists = null;
+
+    // ---- Tabs ----
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+      if (tab === 'tools') populateToolSelects();
+    }
 
     // ---- Settings ----
     const MODELS = {
@@ -499,6 +644,30 @@
       try { return JSON.parse(text); } catch { return {}; }
     }
 
+    // ---- Fetch all tracks from a playlist (handles pagination) ----
+    async function fetchAllPlaylistTracks(playlistId) {
+      let tracks = [];
+      let url = `/playlists/${playlistId}/tracks?limit=100`;
+      while (url) {
+        const data = await spotifyApi(url);
+        if (!data?.items) break;
+        tracks = tracks.concat(data.items.filter(i => i.track));
+        url = data.next ? data.next.replace(SPOTIFY_API, '') : null;
+      }
+      return tracks;
+    }
+
+    // ---- Fetch audio features for track IDs (batches of 100) ----
+    async function fetchAudioFeatures(trackIds) {
+      const features = [];
+      for (let i = 0; i < trackIds.length; i += 100) {
+        const batch = trackIds.slice(i, i + 100).join(',');
+        const data = await spotifyApi(`/audio-features?ids=${batch}`);
+        if (data?.audio_features) features.push(...data.audio_features);
+      }
+      return features;
+    }
+
     // ---- Fetch user library for LLM context ----
     async function fetchLibrarySummary() {
       const [playlists, topTracks, topArtists, savedTracks] = await Promise.all([
@@ -509,21 +678,29 @@
       ]);
 
       let summary = '';
-
-      if (playlists?.items?.length) {
+      if (playlists?.items?.length)
         summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks?.total || 0} tracks)`).join('\n') + '\n\n';
-      }
-      if (topArtists?.items?.length) {
+      if (topArtists?.items?.length)
         summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${(a.genres || []).slice(0,3).join(', ') || 'no genre'})`).join('\n') + '\n\n';
-      }
-      if (topTracks?.items?.length) {
+      if (topTracks?.items?.length)
         summary += 'TOP TRACKS:\n' + topTracks.items.map(t => `- ${t.name} by ${t.artists.map(a=>a.name).join(', ')}`).join('\n') + '\n\n';
-      }
-      if (savedTracks?.items?.length) {
+      if (savedTracks?.items?.length)
         summary += 'RECENTLY SAVED:\n' + savedTracks.items.slice(0, 30).map(i => `- ${i.track.name} by ${i.track.artists.map(a=>a.name).join(', ')}`).join('\n') + '\n';
-      }
-
       return summary;
+    }
+
+    // ---- Populate tool selects ----
+    async function populateToolSelects() {
+      if (!cachedPlaylists) {
+        const data = await spotifyApi('/me/playlists?limit=50');
+        cachedPlaylists = data?.items || [];
+      }
+      const opts = '<option value="">Select playlist...</option>' +
+        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
+      ['dupe-playlist', 'analytics-playlist', 'sort-playlist', 'merge-a', 'merge-b', 'export-playlist'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = opts;
+      });
     }
 
     // ---- LLM ----
@@ -544,13 +721,11 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       const apiKey = localStorage.getItem('llm_api_key');
       if (!apiKey) throw new Error('NO_KEY');
 
-      // Only include library context if the conversation references the user's taste
       const convoText = messages.map(m => m.content).join(' ');
       const wantsLibrary = LIBRARY_KEYWORDS.test(convoText);
       let systemMsg = SYSTEM_PROMPT;
-      if (wantsLibrary && userLibrarySummary) {
+      if (wantsLibrary && userLibrarySummary)
         systemMsg += '\n\nThe user referenced their taste/library. Here is their Spotify data:\n\n--- USER SPOTIFY LIBRARY ---\n' + userLibrarySummary;
-      }
 
       if (provider === 'anthropic') {
         const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -559,41 +734,26 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             'Content-Type': 'application/json', 'x-api-key': apiKey,
             'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
           },
-          body: JSON.stringify({
-            model: model, max_tokens: 2048,
-            system: systemMsg,
-            messages: messages,
-          }),
+          body: JSON.stringify({ model, max_tokens: 2048, system: systemMsg, messages }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
         return data.content[0].text;
-
       } else if (provider === 'openai') {
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: 'system', content: systemMsg }, ...messages],
-          }),
+          body: JSON.stringify({ model, messages: [{ role: 'system', content: systemMsg }, ...messages] }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
         return data.choices[0].message.content;
-
       } else if (provider === 'gemini') {
-        const contents = messages.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        }));
+        const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemMsg }] },
-            contents,
-          }),
+          body: JSON.stringify({ system_instruction: { parts: [{ text: systemMsg }] }, contents }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
@@ -625,103 +785,50 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       container.scrollTop = container.scrollHeight;
     }
 
-    function hideTyping() {
-      document.getElementById('typing-indicator')?.remove();
-    }
+    function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
 
     async function resolveTrack(title, artist) {
       const q = encodeURIComponent(`${title} ${artist}`);
       const sr = await spotifyApi(`/search?q=${q}&type=track&limit=1`);
       if (sr?.tracks?.items?.[0]) {
         const t = sr.tracks.items[0];
-        return {
-          name: t.name,
-          artist: t.artists.map(a => a.name).join(', '),
-          uri: t.uri,
-          img: t.album.images[2]?.url || t.album.images[0]?.url || '',
-        };
+        return { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
       }
       return null;
     }
 
-    // Shared: parse LLM response, resolve on Spotify with progress, return HTML
     async function resolveResponse(response) {
       const lines = response.split('\n');
-      let htmlParts = [];
-      let trackEntries = []; // {title, artist, idx}
-
+      let htmlParts = [], trackEntries = [];
       for (const line of lines) {
-        const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
-        if (trackMatch) {
-          const idx = trackEntries.length;
-          trackEntries.push({ title: trackMatch[1].trim(), artist: trackMatch[2].trim() });
-          htmlParts.push({ type: 'track', idx, raw: line });
-        } else {
-          htmlParts.push({ type: 'text', content: line });
-        }
+        const m = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
+        if (m) { trackEntries.push({ title: m[1].trim(), artist: m[2].trim() }); htmlParts.push({ type: 'track', idx: trackEntries.length - 1, raw: line }); }
+        else htmlParts.push({ type: 'text', content: line });
       }
 
-      // Resolve tracks in batches of 5 with progress
       const resolved = new Array(trackEntries.length).fill(null);
       let done = 0;
       const total = trackEntries.length;
-
-      async function resolveOne(i) {
-        resolved[i] = await resolveTrack(trackEntries[i].title, trackEntries[i].artist);
-        done++;
-        showTyping(`Finding tracks on Spotify... ${done}/${total}`);
-      }
-
+      async function resolveOne(i) { resolved[i] = await resolveTrack(trackEntries[i].title, trackEntries[i].artist); done++; showTyping(`Finding tracks on Spotify... ${done}/${total}`); }
       if (total > 0) showTyping(`Finding tracks on Spotify... 0/${total}`);
-      // Run 5 at a time
-      for (let i = 0; i < total; i += 5) {
-        await Promise.all(trackEntries.slice(i, i + 5).map((_, j) => resolveOne(i + j)));
-      }
+      for (let i = 0; i < total; i += 5) await Promise.all(trackEntries.slice(i, i + 5).map((_, j) => resolveOne(i + j)));
 
-      let html = '';
-      let textBuffer = [];
-      let trackBuffer = [];
-
-      function flushText() {
-        if (textBuffer.length) {
-          const t = textBuffer.join('\n').trim();
-          if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
-          textBuffer = [];
-        }
-      }
-
-      function flushTracks() {
-        if (trackBuffer.length) {
-          html += '<div class="track-suggestions-grid">' + trackBuffer.join('') + '</div>';
-          trackBuffer = [];
-        }
-      }
+      let html = '', textBuffer = [], trackBuffer = [];
+      function flushText() { if (textBuffer.length) { const t = textBuffer.join('\n').trim(); if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>'; textBuffer = []; } }
+      function flushTracks() { if (trackBuffer.length) { html += '<div class="track-suggestions-grid">' + trackBuffer.join('') + '</div>'; trackBuffer = []; } }
 
       for (const part of htmlParts) {
-        if (part.type === 'text') {
-          flushTracks();
-          textBuffer.push(part.content);
-        } else {
+        if (part.type === 'text') { flushTracks(); textBuffer.push(part.content); }
+        else {
           flushText();
           const track = resolved[part.idx];
           if (track) {
             const isStaged = stagedTracks.some(s => s.uri === track.uri);
-            trackBuffer.push(`
-              <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-                <img src="${track.img}" alt="">
-                <div class="ts-info">
-                  <div class="ts-name">${esc(track.name)}</div>
-                  <div class="ts-artist">${esc(track.artist)}</div>
-                </div>
-                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-              </div>`);
-          } else {
-            textBuffer.push(part.raw + ' (not found on Spotify)');
-          }
+            trackBuffer.push(`<div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)"><img src="${track.img}" alt=""><div class="ts-info"><div class="ts-name">${esc(track.name)}</div><div class="ts-artist">${esc(track.artist)}</div></div><span class="ts-add">${isStaged ? '&#10003;' : '+'}</span></div>`);
+          } else textBuffer.push(part.raw + ' (not found on Spotify)');
         }
       }
-      flushText();
-      flushTracks();
+      flushText(); flushTracks();
 
       if (total > 0) {
         html += `<div class="batch-actions">
@@ -731,7 +838,6 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
         </div>`;
       }
-
       return html;
     }
 
@@ -739,64 +845,37 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
       if (!text) return;
-
       input.value = '';
       addChatMessage('user', esc(text));
       conversationHistory.push({ role: 'user', content: text });
-
       showTyping();
-
       try {
-        // Lazy-fetch library if user references their taste and we haven't yet
         const convoText = conversationHistory.map(m => m.content).join(' ');
-        if (!userLibrarySummary && LIBRARY_KEYWORDS.test(convoText)) {
-          userLibrarySummary = await fetchLibrarySummary();
-        }
-
+        if (!userLibrarySummary && LIBRARY_KEYWORDS.test(convoText)) userLibrarySummary = await fetchLibrarySummary();
         const response = await callLLM(conversationHistory);
         conversationHistory.push({ role: 'assistant', content: response });
-
         const html = await resolveResponse(response);
         hideTyping();
         addChatMessage('assistant', html);
-
       } catch (err) {
         hideTyping();
-        if (err.message === 'NO_KEY') {
-          toast('Set your API key in settings first');
-          openSettings();
-          conversationHistory.pop();
-        } else {
-          addChatMessage('assistant', `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`);
-          conversationHistory.pop();
-        }
+        if (err.message === 'NO_KEY') { toast('Set your API key in settings first'); openSettings(); conversationHistory.pop(); }
+        else { addChatMessage('assistant', `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`); conversationHistory.pop(); }
       }
     }
 
     async function loadMore(btn) {
-      btn.disabled = true;
-      btn.textContent = 'Loading...';
-
+      btn.disabled = true; btn.textContent = 'Loading...';
       conversationHistory.push({ role: 'user', content: 'Give me more tracks like those. Different ones, no repeats. At least 25 more.' });
       showTyping();
-
       try {
         const response = await callLLM(conversationHistory);
         conversationHistory.push({ role: 'assistant', content: response });
         const html = await resolveResponse(response);
-        hideTyping();
-        btn.parentElement.remove();
-        addChatMessage('assistant', html);
-      } catch (err) {
-        hideTyping();
-        btn.disabled = false;
-        btn.textContent = 'Load more';
-        toast('Error: ' + err.message);
-        conversationHistory.pop();
-      }
+        hideTyping(); btn.closest('.batch-actions').remove(); addChatMessage('assistant', html);
+      } catch (err) { hideTyping(); btn.disabled = false; btn.textContent = 'Load more'; toast('Error: ' + err.message); conversationHistory.pop(); }
     }
 
-    // Add all tracks from a message to staging
     function addAllFromMessage(btn) {
       const msg = btn.closest('.msg');
       const suggestions = msg.querySelectorAll('.track-suggestion:not(.added)');
@@ -804,155 +883,56 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       toast(`Added ${suggestions.length} tracks`);
     }
 
-    // Replace all listed tracks with similar ones using Spotify recs
     async function refreshAllTracks(btn) {
       const msg = btn.closest('.msg');
       const suggestions = Array.from(msg.querySelectorAll('.track-suggestion'));
       if (!suggestions.length) return;
-
-      btn.disabled = true;
-      btn.textContent = 'Refreshing...';
+      btn.disabled = true; btn.textContent = 'Refreshing...';
       showTyping('Finding similar tracks...');
-
       try {
-        // Use up to 5 random tracks from the list as seeds
         const uris = suggestions.map(el => el.dataset.uri).filter(Boolean);
-        const seedUris = uris.sort(() => Math.random() - 0.5).slice(0, 5);
-        const seedIds = seedUris.map(u => u.split(':')[2]).join(',');
-
+        const seedIds = uris.sort(() => Math.random() - 0.5).slice(0, 5).map(u => u.split(':')[2]).join(',');
         const data = await spotifyApi(`/recommendations?seed_tracks=${seedIds}&limit=${suggestions.length}`);
         hideTyping();
-
-        if (!data?.tracks?.length) {
-          btn.disabled = false;
-          btn.textContent = '\u21BB Refresh all';
-          toast('No alternatives found');
-          return;
-        }
-
-        // Find the grid container and replace its contents
+        if (!data?.tracks?.length) { btn.disabled = false; btn.textContent = '\u21BB Refresh all'; toast('No alternatives found'); return; }
         const grid = msg.querySelector('.track-suggestions-grid');
         if (grid) {
-          let newHtml = '';
-          for (const t of data.tracks) {
-            const track = {
-              name: t.name,
-              artist: t.artists.map(a => a.name).join(', '),
-              uri: t.uri,
-              img: t.album.images[2]?.url || t.album.images[0]?.url || '',
-            };
+          grid.innerHTML = data.tracks.map(t => {
+            const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
             const isStaged = stagedTracks.some(s => s.uri === track.uri);
-            newHtml += `
-              <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-                <img src="${track.img}" alt="">
-                <div class="ts-info">
-                  <div class="ts-name">${esc(track.name)}</div>
-                  <div class="ts-artist">${esc(track.artist)}</div>
-                </div>
-                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-              </div>`;
-          }
-          grid.innerHTML = newHtml;
+            return `<div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)"><img src="${track.img}" alt=""><div class="ts-info"><div class="ts-name">${esc(track.name)}</div><div class="ts-artist">${esc(track.artist)}</div></div><span class="ts-add">${isStaged ? '&#10003;' : '+'}</span></div>`;
+          }).join('');
         }
-
-        btn.disabled = false;
-        btn.textContent = '\u21BB Refresh all';
-        toast('Tracks refreshed');
-
-      } catch (err) {
-        hideTyping();
-        btn.disabled = false;
-        btn.textContent = '\u21BB Refresh all';
-        toast('Error: ' + err.message);
-      }
+        btn.disabled = false; btn.textContent = '\u21BB Refresh all'; toast('Tracks refreshed');
+      } catch (err) { hideTyping(); btn.disabled = false; btn.textContent = '\u21BB Refresh all'; toast('Error: ' + err.message); }
     }
 
-    // Use Spotify's recommendations API to get more tracks like the staged ones — no LLM needed
     async function loadMoreLikeStaged(btn) {
-      if (!stagedTracks.length) {
-        toast('Stage some tracks first so I know what you like');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Loading...';
+      if (!stagedTracks.length) { toast('Stage some tracks first'); return; }
+      btn.disabled = true; btn.textContent = 'Loading...';
       showTyping('Getting Spotify recommendations...');
-
       try {
-        // Spotify recommendations API takes up to 5 seed tracks
-        const seeds = stagedTracks.slice(-5).map(t => {
-          // Extract track ID from URI (spotify:track:XXXXX)
-          return t.uri.split(':')[2];
-        }).join(',');
-
+        const seeds = stagedTracks.slice(-5).map(t => t.uri.split(':')[2]).join(',');
         const data = await spotifyApi(`/recommendations?seed_tracks=${seeds}&limit=30`);
-        if (!data?.tracks?.length) {
-          hideTyping();
-          btn.disabled = false;
-          btn.textContent = 'More like my picks';
-          toast('No recommendations found');
-          return;
-        }
-
+        if (!data?.tracks?.length) { hideTyping(); btn.disabled = false; btn.textContent = 'More like my picks'; toast('No recommendations found'); return; }
         let html = '<p>Based on your picks:</p><div class="track-suggestions-grid">';
-        for (const t of data.tracks) {
-          const track = {
-            name: t.name,
-            artist: t.artists.map(a => a.name).join(', '),
-            uri: t.uri,
-            img: t.album.images[2]?.url || t.album.images[0]?.url || '',
-          };
+        html += data.tracks.map(t => {
+          const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
           const isStaged = stagedTracks.some(s => s.uri === track.uri);
-          html += `
-            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
-              <img src="${track.img}" alt="">
-              <div class="ts-info">
-                <div class="ts-name">${esc(track.name)}</div>
-                <div class="ts-artist">${esc(track.artist)}</div>
-              </div>
-              <div class="ts-actions">
-                <span class="ts-refresh" onclick="event.stopPropagation(); refreshTrack(this, '${track.uri}')" title="Find similar">&#8635;</span>
-                <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
-              </div>
-            </div>`;
-        }
-        html += '</div>';
-
-        html += `<div class="batch-actions">
-          <button class="btn btn-green btn-sm" onclick="addAllFromMessage(this)">Add all</button>
-          <button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button>
-          <button class="btn btn-outline btn-sm" onclick="refreshAllTracks(this)">&#8635; Refresh all</button>
-          <button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button>
-        </div>`;
-
-        hideTyping();
-        btn.parentElement.remove();
-        addChatMessage('assistant', html);
-
-      } catch (err) {
-        hideTyping();
-        btn.disabled = false;
-        btn.textContent = 'More like my picks';
-        toast('Error: ' + err.message);
-      }
+          return `<div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)"><img src="${track.img}" alt=""><div class="ts-info"><div class="ts-name">${esc(track.name)}</div><div class="ts-artist">${esc(track.artist)}</div></div><span class="ts-add">${isStaged ? '&#10003;' : '+'}</span></div>`;
+        }).join('');
+        html += '</div><div class="batch-actions"><button class="btn btn-green btn-sm" onclick="addAllFromMessage(this)">Add all</button><button class="btn btn-outline btn-sm" onclick="loadMore(this)">Load more</button><button class="btn btn-outline btn-sm" onclick="refreshAllTracks(this)">&#8635; Refresh all</button><button class="btn btn-outline btn-sm" style="border-color:#1db954; color:#1db954;" onclick="loadMoreLikeStaged(this)">More like my picks</button></div>';
+        hideTyping(); btn.closest('.batch-actions').remove(); addChatMessage('assistant', html);
+      } catch (err) { hideTyping(); btn.disabled = false; btn.textContent = 'More like my picks'; toast('Error: ' + err.message); }
     }
 
-    document.getElementById('chat-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') sendMessage();
-    });
+    document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
     // ---- Staging ----
     function stageFromSuggestion(el) {
       const uri = el.dataset.uri;
       if (stagedTracks.some(s => s.uri === uri)) return;
-
-      stagedTracks.push({
-        name: el.dataset.name,
-        artist: el.dataset.artist,
-        uri: uri,
-        img: el.dataset.img,
-      });
-
+      stagedTracks.push({ name: el.dataset.name, artist: el.dataset.artist, uri, img: el.dataset.img });
       el.classList.add('added');
       el.querySelector('.ts-add').innerHTML = '&#10003;';
       renderStaging();
@@ -960,74 +940,41 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
     function removeStaged(uri) {
       stagedTracks = stagedTracks.filter(t => t.uri !== uri);
-      // Update any suggestion buttons
-      document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => {
-        el.classList.remove('added');
-        el.querySelector('.ts-add').textContent = '+';
-      });
+      document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => { el.classList.remove('added'); el.querySelector('.ts-add').textContent = '+'; });
       renderStaging();
     }
 
     function clearStaged() {
-      const uris = stagedTracks.map(t => t.uri);
-      stagedTracks = [];
-      uris.forEach(uri => {
-        document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => {
-          el.classList.remove('added');
-          el.querySelector('.ts-add').textContent = '+';
-        });
-      });
+      const uris = stagedTracks.map(t => t.uri); stagedTracks = [];
+      uris.forEach(uri => { document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => { el.classList.remove('added'); el.querySelector('.ts-add').textContent = '+'; }); });
       renderStaging();
     }
 
     function renderStaging() {
       const container = document.getElementById('staging-tracks');
-      const empty = document.getElementById('staging-empty');
       const actions = document.getElementById('staging-actions');
       const count = document.getElementById('staging-count');
-
       count.textContent = stagedTracks.length + ' track' + (stagedTracks.length !== 1 ? 's' : '');
-
-      if (!stagedTracks.length) {
-        container.innerHTML = '<div class="staging-empty" id="staging-empty">Click + on suggested tracks to add them here</div>';
-        actions.style.display = 'none';
-        return;
-      }
-
+      if (!stagedTracks.length) { container.innerHTML = '<div class="staging-empty">Click + on suggested tracks to add them here</div>'; actions.style.display = 'none'; return; }
       actions.style.display = 'flex';
-      container.innerHTML = stagedTracks.map(t => `
-        <div class="staged-track">
-          <img src="${t.img}" alt="">
-          <div class="st-info">
-            <div class="st-name">${esc(t.name)}</div>
-            <div class="st-artist">${esc(t.artist)}</div>
-          </div>
-          <span class="st-remove" onclick="removeStaged('${t.uri}')">&times;</span>
-        </div>
-      `).join('');
+      container.innerHTML = stagedTracks.map(t => `<div class="staged-track"><img src="${t.img}" alt=""><div class="st-info"><div class="st-name">${esc(t.name)}</div><div class="st-artist">${esc(t.artist)}</div></div><span class="st-remove" onclick="removeStaged('${t.uri}')">&times;</span></div>`).join('');
     }
 
     // ---- Playlists ----
     async function loadPlaylists() {
       const data = await spotifyApi('/me/playlists?limit=50');
       if (!data) return;
+      cachedPlaylists = data.items || [];
       const select = document.getElementById('playlist-select');
       select.innerHTML = '<option value="">Select a playlist...</option>' +
-        (data.items || []).map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
+        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
     }
 
     async function createPlaylist() {
       const name = document.getElementById('new-playlist-name').value.trim();
       if (!name) return;
-      const p = await spotifyApi('/users/' + userId + '/playlists', {
-        method: 'POST', body: JSON.stringify({ name, public: false }),
-      });
-      if (p) {
-        document.getElementById('new-playlist-name').value = '';
-        toast('Created: ' + name);
-        await loadPlaylists();
-        document.getElementById('playlist-select').value = p.id;
-      }
+      const p = await spotifyApi('/users/' + userId + '/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
+      if (p) { document.getElementById('new-playlist-name').value = ''; toast('Created: ' + name); await loadPlaylists(); document.getElementById('playlist-select').value = p.id; }
     }
 
     async function saveToPlaylist() {
@@ -1035,18 +982,236 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       if (!playlistId) { toast('Select a playlist first'); return; }
       if (!stagedTracks.length) { toast('No tracks staged'); return; }
       const uris = stagedTracks.map(t => t.uri);
-      for (let i = 0; i < uris.length; i += 100) {
-        await spotifyApi('/playlists/' + playlistId + '/tracks', {
-          method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }),
+      for (let i = 0; i < uris.length; i += 100) await spotifyApi('/playlists/' + playlistId + '/tracks', { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+      toast(`Added ${uris.length} tracks!`);
+    }
+
+    // ==== TOOLS ====
+
+    // ---- Duplicate Finder ----
+    let dupeData = null;
+    async function findDuplicates() {
+      const id = document.getElementById('dupe-playlist').value;
+      if (!id) { toast('Select a playlist'); return; }
+      const result = document.getElementById('dupe-result');
+      const removeBtn = document.getElementById('dupe-remove-btn');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Scanning...</div>';
+      removeBtn.style.display = 'none';
+
+      const items = await fetchAllPlaylistTracks(id);
+      const seen = new Map();
+      const dupes = [];
+
+      items.forEach((item, idx) => {
+        const key = (item.track.name + ' - ' + item.track.artists.map(a => a.name).join(', ')).toLowerCase();
+        if (seen.has(key)) {
+          dupes.push({ idx, item, original: seen.get(key) });
+        } else {
+          seen.set(key, idx);
+        }
+      });
+
+      if (!dupes.length) {
+        result.innerHTML = '<p style="color:#1db954;">No duplicates found!</p>';
+        return;
+      }
+
+      dupeData = { playlistId: id, dupes, items };
+      removeBtn.style.display = 'inline-flex';
+      result.innerHTML = `<p><strong>${dupes.length}</strong> duplicate${dupes.length > 1 ? 's' : ''} found:</p>` +
+        dupes.map(d => `<div class="dupe-item"><img src="${d.item.track.album.images?.[2]?.url || ''}" alt=""><div class="dupe-info"><div class="dupe-name">${esc(d.item.track.name)}</div><div class="dupe-detail">${esc(d.item.track.artists.map(a=>a.name).join(', '))}</div></div></div>`).join('');
+    }
+
+    async function removeDuplicates() {
+      if (!dupeData) return;
+      const { playlistId, dupes, items } = dupeData;
+      // Remove from end to start so indices don't shift
+      const toRemove = dupes.map(d => ({ uri: d.item.track.uri, positions: [d.idx] })).reverse();
+      // Spotify allows batch removal
+      for (let i = 0; i < toRemove.length; i += 100) {
+        await spotifyApi(`/playlists/${playlistId}/tracks`, {
+          method: 'DELETE',
+          body: JSON.stringify({ tracks: toRemove.slice(i, i + 100) }),
         });
       }
-      toast(`Added ${uris.length} tracks!`);
+      toast(`Removed ${dupes.length} duplicates`);
+      document.getElementById('dupe-remove-btn').style.display = 'none';
+      document.getElementById('dupe-result').innerHTML = '<p style="color:#1db954;">Duplicates removed!</p>';
+      dupeData = null;
+    }
+
+    // ---- Playlist Analytics ----
+    async function analyzePlaylist() {
+      const id = document.getElementById('analytics-playlist').value;
+      if (!id) { toast('Select a playlist'); return; }
+      const result = document.getElementById('analytics-result');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing...</div>';
+
+      const items = await fetchAllPlaylistTracks(id);
+      const trackIds = items.map(i => i.track.id).filter(Boolean);
+      const features = await fetchAudioFeatures(trackIds);
+      const valid = features.filter(Boolean);
+
+      if (!valid.length) { result.innerHTML = '<p>No audio data available for this playlist.</p>'; return; }
+
+      const avg = (arr, key) => arr.reduce((s, f) => s + (f[key] || 0), 0) / arr.length;
+      const avgBpm = Math.round(avg(valid, 'tempo'));
+      const avgEnergy = Math.round(avg(valid, 'energy') * 100);
+      const avgDance = Math.round(avg(valid, 'danceability') * 100);
+      const avgValence = Math.round(avg(valid, 'valence') * 100);
+      const avgAcoustic = Math.round(avg(valid, 'acousticness') * 100);
+
+      // Decade breakdown
+      const decades = {};
+      items.forEach(i => {
+        const year = i.track.album?.release_date?.substring(0, 4);
+        if (year) { const dec = Math.floor(parseInt(year) / 10) * 10 + 's'; decades[dec] = (decades[dec] || 0) + 1; }
+      });
+      const decadeStr = Object.entries(decades).sort((a, b) => b[1] - a[1]).map(([d, c]) => `${d}: ${c}`).join(', ');
+
+      // Top artists
+      const artistCount = {};
+      items.forEach(i => { i.track.artists.forEach(a => { artistCount[a.name] = (artistCount[a.name] || 0) + 1; }); });
+      const topArtists = Object.entries(artistCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+      result.innerHTML = `
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-val">${items.length}</div><div class="stat-label">Tracks</div></div>
+          <div class="stat-box"><div class="stat-val">${avgBpm}</div><div class="stat-label">Avg BPM</div></div>
+          <div class="stat-box"><div class="stat-val">${avgEnergy}%</div><div class="stat-label">Energy</div></div>
+          <div class="stat-box"><div class="stat-val">${avgDance}%</div><div class="stat-label">Danceability</div></div>
+          <div class="stat-box"><div class="stat-val">${avgValence}%</div><div class="stat-label">Mood</div></div>
+          <div class="stat-box"><div class="stat-val">${avgAcoustic}%</div><div class="stat-label">Acoustic</div></div>
+        </div>
+        <p style="margin-top:12px; color:#b3b3b3; font-size:12px;">Decades: ${decadeStr || 'N/A'}</p>
+        <p style="margin-top:8px; font-weight:600; font-size:13px;">Top Artists</p>
+        <table><thead><tr><th>Artist</th><th>Tracks</th></tr></thead><tbody>
+          ${topArtists.map(([name, count]) => `<tr><td>${esc(name)}</td><td>${count}</td></tr>`).join('')}
+        </tbody></table>
+      `;
+    }
+
+    // ---- Sort Playlist ----
+    async function sortPlaylist() {
+      const id = document.getElementById('sort-playlist').value;
+      const attr = document.getElementById('sort-attr').value;
+      const dir = document.getElementById('sort-dir').value;
+      if (!id) { toast('Select a playlist'); return; }
+      const result = document.getElementById('sort-result');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Sorting...</div>';
+
+      const items = await fetchAllPlaylistTracks(id);
+      const trackIds = items.map(i => i.track.id).filter(Boolean);
+      const features = await fetchAudioFeatures(trackIds);
+
+      const featureMap = {};
+      features.forEach(f => { if (f) featureMap[f.id] = f; });
+
+      const sorted = items
+        .map(i => ({ item: i, feat: featureMap[i.track.id] }))
+        .filter(x => x.feat)
+        .sort((a, b) => dir === 'asc' ? a.feat[attr] - b.feat[attr] : b.feat[attr] - a.feat[attr]);
+
+      // Reorder by removing all and re-adding in order
+      const uris = sorted.map(x => x.item.track.uri);
+
+      // Clear playlist
+      await spotifyApi(`/playlists/${id}/tracks`, { method: 'PUT', body: JSON.stringify({ uris: [] }) });
+
+      // Add back in sorted order (100 at a time)
+      for (let i = 0; i < uris.length; i += 100) {
+        await spotifyApi(`/playlists/${id}/tracks`, { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+      }
+
+      result.innerHTML = `<p style="color:#1db954;">Sorted ${uris.length} tracks by ${attr} (${dir === 'asc' ? 'low→high' : 'high→low'})!</p>
+        <table><thead><tr><th>Track</th><th>${esc(attr)}</th></tr></thead><tbody>
+          ${sorted.slice(0, 20).map(x => `<tr><td>${esc(x.item.track.name)}</td><td>${attr === 'tempo' ? Math.round(x.feat[attr]) : Math.round(x.feat[attr] * 100) + '%'}</td></tr>`).join('')}
+          ${sorted.length > 20 ? `<tr><td colspan="2" style="color:#b3b3b3;">...and ${sorted.length - 20} more</td></tr>` : ''}
+        </tbody></table>`;
+    }
+
+    // ---- Merge Playlists ----
+    async function mergePlaylists() {
+      const a = document.getElementById('merge-a').value;
+      const b = document.getElementById('merge-b').value;
+      const name = document.getElementById('merge-name').value.trim();
+      if (!a || !b) { toast('Select two playlists'); return; }
+      if (!name) { toast('Enter a name'); return; }
+      const result = document.getElementById('merge-result');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Merging...</div>';
+
+      const [tracksA, tracksB] = await Promise.all([fetchAllPlaylistTracks(a), fetchAllPlaylistTracks(b)]);
+      const seen = new Set();
+      const merged = [];
+      [...tracksA, ...tracksB].forEach(i => {
+        if (!seen.has(i.track.uri)) { seen.add(i.track.uri); merged.push(i.track.uri); }
+      });
+
+      const p = await spotifyApi('/users/' + userId + '/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
+      for (let i = 0; i < merged.length; i += 100) {
+        await spotifyApi(`/playlists/${p.id}/tracks`, { method: 'POST', body: JSON.stringify({ uris: merged.slice(i, i + 100) }) });
+      }
+
+      await loadPlaylists();
+      result.innerHTML = `<p style="color:#1db954;">Created "${esc(name)}" with ${merged.length} tracks (${tracksA.length + tracksB.length - merged.length} duplicates removed).</p>`;
+    }
+
+    // ---- Cross-Playlist Search ----
+    async function crossPlaylistSearch() {
+      const query = document.getElementById('xsearch-query').value.trim().toLowerCase();
+      if (!query) { toast('Enter a search term'); return; }
+      const result = document.getElementById('xsearch-result');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching playlists...</div>';
+
+      if (!cachedPlaylists) await populateToolSelects();
+      const matches = [];
+
+      for (const pl of cachedPlaylists) {
+        const tracks = await fetchAllPlaylistTracks(pl.id);
+        const found = tracks.filter(i =>
+          i.track.name.toLowerCase().includes(query) ||
+          i.track.artists.some(a => a.name.toLowerCase().includes(query))
+        );
+        if (found.length) matches.push({ playlist: pl.name, tracks: found });
+      }
+
+      if (!matches.length) { result.innerHTML = '<p>Not found in any playlist.</p>'; return; }
+
+      result.innerHTML = matches.map(m =>
+        `<p style="font-weight:600; margin-top:8px;">${esc(m.playlist)}</p>` +
+        m.tracks.map(i => `<div class="dupe-item"><img src="${i.track.album.images?.[2]?.url || ''}" alt=""><div class="dupe-info"><div class="dupe-name">${esc(i.track.name)}</div><div class="dupe-detail">${esc(i.track.artists.map(a=>a.name).join(', '))}</div></div></div>`).join('')
+      ).join('');
+    }
+
+    // ---- Export Playlist ----
+    async function exportPlaylist() {
+      const id = document.getElementById('export-playlist').value;
+      if (!id) { toast('Select a playlist'); return; }
+      const items = await fetchAllPlaylistTracks(id);
+      const name = cachedPlaylists?.find(p => p.id === id)?.name || 'playlist';
+
+      let csv = 'Track,Artist,Album,Duration (s),Date Added\n';
+      items.forEach(i => {
+        const t = i.track;
+        csv += `"${t.name.replace(/"/g, '""')}","${t.artists.map(a=>a.name).join('; ').replace(/"/g, '""')}","${(t.album?.name || '').replace(/"/g, '""')}",${Math.round((t.duration_ms || 0) / 1000)},"${i.added_at || ''}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name + '.csv'; a.click();
+      URL.revokeObjectURL(url);
+      toast(`Exported ${items.length} tracks`);
     }
 
     // ---- Init ----
     async function init() {
       if (window.location.search.includes('code=')) await handleCallback();
-
       const stored = localStorage.getItem('spotify_token');
       const expires = localStorage.getItem('spotify_token_expires');
       if (stored && expires && Date.now() < Number(expires)) accessToken = stored;
@@ -1066,27 +1231,13 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         `;
         loadPlaylists();
         updateSetupBanner();
-
-        // Library fetched lazily when user references their taste
       } else {
-        document.getElementById('user-area').innerHTML = `
-          <button class="btn btn-green btn-sm" onclick="login()">Log in</button>
-        `;
+        document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
       }
     }
 
-    function toast(msg) {
-      const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.classList.add('show');
-      setTimeout(() => el.classList.remove('show'), 2500);
-    }
-
-    function esc(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
+    function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2500); }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     init();
   </script>
