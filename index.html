@@ -1212,14 +1212,16 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
         ]);
 
-        const myArtistIds = new Set();
+        const artistTrackCount = new Map(); // artist id -> count of tracks user has
         const myTrackIds = new Set();
         const myAlbumIds = new Set();
 
-        // Collect what user already knows
-        (topArtists?.items || []).forEach(a => myArtistIds.add(a.id));
-        (savedTracks?.items || []).forEach(i => { myTrackIds.add(i.track.id); myAlbumIds.add(i.track.album?.id); i.track.artists.forEach(a => myArtistIds.add(a.id)); });
-        (topTracks?.items || []).forEach(t => { myTrackIds.add(t.id); myAlbumIds.add(t.album?.id); t.artists.forEach(a => myArtistIds.add(a.id)); });
+        // Collect what user already knows, counting per artist
+        function countArtist(id) { artistTrackCount.set(id, (artistTrackCount.get(id) || 0) + 1); }
+
+        (topArtists?.items || []).forEach(a => countArtist(a.id));
+        (savedTracks?.items || []).forEach(i => { myTrackIds.add(i.track.id); myAlbumIds.add(i.track.album?.id); i.track.artists.forEach(a => countArtist(a.id)); });
+        (topTracks?.items || []).forEach(t => { myTrackIds.add(t.id); myAlbumIds.add(t.album?.id); t.artists.forEach(a => countArtist(a.id)); });
 
         // Also scan playlists for artist/track coverage
         if (cachedPlaylists) {
@@ -1229,26 +1231,28 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             tracks.forEach(i => {
               myTrackIds.add(i.track.id);
               myAlbumIds.add(i.track.album?.id);
-              i.track.artists.forEach(a => myArtistIds.add(a.id));
+              i.track.artists.forEach(a => countArtist(a.id));
             });
           }
         }
 
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding related artists you\'re missing...</div>';
 
-        // Get related artists for top artists — find ones user doesn't listen to
-        const missingArtists = new Map(); // id -> {artist, relatedTo}
+        // Get related artists for top artists — find ones user barely listens to (0-2 tracks)
+        const missingArtists = new Map();
         const topItems = topArtists?.items || [];
 
         for (const artist of topItems.slice(0, 10)) {
           const related = await spotifyApi(`/artists/${artist.id}/related-artists`);
           if (!related?.artists) continue;
           for (const ra of related.artists) {
-            if (!myArtistIds.has(ra.id) && !missingArtists.has(ra.id)) {
+            const count = artistTrackCount.get(ra.id) || 0;
+            if (count <= 2 && !missingArtists.has(ra.id)) {
               missingArtists.set(ra.id, {
                 artist: ra,
                 relatedTo: artist.name,
                 popularity: ra.popularity,
+                userTrackCount: count,
               });
             }
           }
@@ -1294,15 +1298,18 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
         if (blindspotArtists.length) {
           html += '<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Artists you should know</p>';
-          html += '<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Related to artists you love, but missing from your library</p>';
-          html += blindspotArtists.map(b => `
+          html += '<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Related to artists you love, but barely in your library</p>';
+          html += blindspotArtists.map(b => {
+            const countNote = b.userTrackCount === 0 ? 'not in your library' : `only ${b.userTrackCount} track${b.userTrackCount > 1 ? 's' : ''}`;
+            return `
             <div class="dupe-item">
               <img src="${b.artist.images?.[2]?.url || b.artist.images?.[0]?.url || ''}" alt="">
               <div class="dupe-info">
                 <div class="dupe-name">${esc(b.artist.name)}</div>
-                <div class="dupe-detail">Because you like ${esc(b.relatedTo)} &middot; ${(b.artist.genres || []).slice(0,2).join(', ') || 'no genre'}</div>
+                <div class="dupe-detail">Because you like ${esc(b.relatedTo)} &middot; ${countNote} &middot; ${(b.artist.genres || []).slice(0,2).join(', ') || 'no genre'}</div>
               </div>
-            </div>`).join('');
+            </div>`;
+          }).join('');
         }
 
         if (missingAlbums.length) {
