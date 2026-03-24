@@ -12,270 +12,191 @@
       background: #121212;
       color: #fff;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 20px 40px;
+      padding: 16px 32px;
       background: #000;
+      flex-shrink: 0;
     }
 
-    .logo {
-      font-size: 28px;
-      font-weight: 800;
-      color: #1db954;
-      letter-spacing: -1px;
-    }
+    .logo { font-size: 24px; font-weight: 800; color: #1db954; letter-spacing: -1px; }
 
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .user-area {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .user-area img {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-    }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .user-area { display: flex; align-items: center; gap: 12px; }
+    .user-area img { width: 32px; height: 32px; border-radius: 50%; }
 
     .btn {
-      padding: 10px 24px;
-      border-radius: 24px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      transition: transform 0.1s, background 0.2s;
+      padding: 10px 24px; border-radius: 24px; border: none; cursor: pointer;
+      font-weight: 600; font-size: 14px; transition: transform 0.1s, background 0.2s;
     }
-
     .btn:hover { transform: scale(1.04); }
     .btn-green { background: #1db954; color: #000; }
+    .btn-red { background: #e74c3c; color: #fff; }
     .btn-outline { background: transparent; color: #fff; border: 1px solid #fff; }
     .btn-sm { padding: 6px 16px; font-size: 13px; }
-    .btn-icon { background: transparent; color: #b3b3b3; border: 1px solid #333; font-size: 16px; width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+    .btn-icon {
+      background: transparent; color: #b3b3b3; border: 1px solid #333;
+      font-size: 16px; width: 36px; height: 36px; padding: 0;
+      display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer;
+    }
     .btn-icon:hover { color: #fff; border-color: #fff; }
 
     /* Landing */
     .landing {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 70vh;
-      text-align: center;
-      gap: 24px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 70vh; text-align: center; gap: 24px;
     }
-
     .landing h1 { font-size: 52px; font-weight: 800; }
     .landing h1 span { color: #1db954; }
     .landing p { color: #b3b3b3; font-size: 18px; max-width: 500px; }
 
-    /* App */
-    .app { display: none; max-width: 800px; margin: 0 auto; padding: 40px 24px; }
-    .app.active { display: block; }
+    /* App layout: two columns */
+    .app { display: none; flex: 1; overflow: hidden; }
+    .app.active { display: flex; }
 
-    /* Prompt area */
-    .prompt-box {
-      background: #1a1a1a;
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 32px;
+    .chat-col {
+      flex: 1; display: flex; flex-direction: column;
+      border-right: 1px solid #282828; min-width: 0;
     }
 
-    .prompt-box textarea {
-      width: 100%;
-      min-height: 100px;
-      background: #282828;
-      border: none;
-      border-radius: 12px;
-      color: #fff;
-      font-size: 16px;
-      font-family: inherit;
-      padding: 16px;
-      resize: vertical;
-      outline: none;
+    .staging-col {
+      width: 380px; flex-shrink: 0; display: flex; flex-direction: column;
+      background: #0a0a0a;
     }
 
-    .prompt-box textarea::placeholder { color: #727272; }
-
-    .prompt-box .prompt-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 12px;
+    /* Chat */
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 24px;
+      display: flex; flex-direction: column; gap: 16px;
     }
 
-    .prompt-box .hint { color: #535353; font-size: 13px; }
-
-    /* Results */
-    .results-section { margin-bottom: 32px; }
-    .results-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
+    .msg {
+      max-width: 85%; padding: 14px 18px; border-radius: 16px;
+      font-size: 15px; line-height: 1.5; word-wrap: break-word;
     }
-
-    .section-title { font-size: 20px; font-weight: 700; }
-
-    .track-list { display: flex; flex-direction: column; gap: 4px; }
-
-    .track {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 10px 16px;
-      border-radius: 8px;
+    .msg.user { background: #1db954; color: #000; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg.assistant { background: #282828; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg.assistant .track-suggestion {
+      display: flex; align-items: center; gap: 10px;
+      background: #1a1a1a; border-radius: 8px; padding: 8px 12px; margin-top: 8px; cursor: pointer;
       transition: background 0.15s;
     }
+    .msg.assistant .track-suggestion:hover { background: #333; }
+    .msg.assistant .track-suggestion img { width: 40px; height: 40px; border-radius: 4px; }
+    .msg.assistant .track-suggestion .ts-info { flex: 1; min-width: 0; }
+    .msg.assistant .track-suggestion .ts-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg.assistant .track-suggestion .ts-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg.assistant .track-suggestion .ts-add { color: #1db954; font-weight: 700; font-size: 18px; flex-shrink: 0; }
+    .msg.assistant .track-suggestion.added { opacity: 0.5; }
+    .msg.assistant .track-suggestion.added .ts-add { color: #535353; }
 
-    .track:hover { background: #282828; }
+    .chat-input-area {
+      padding: 16px 24px; background: #181818; border-top: 1px solid #282828;
+      display: flex; gap: 8px;
+    }
+    .chat-input-area input {
+      flex: 1; padding: 12px 18px; border-radius: 24px; border: none;
+      background: #282828; color: #fff; font-size: 15px; outline: none;
+    }
+    .chat-input-area input::placeholder { color: #727272; }
 
-    .track img {
-      width: 48px;
-      height: 48px;
-      border-radius: 4px;
+    .typing { display: flex; align-items: center; gap: 8px; padding: 14px 18px; color: #b3b3b3; font-size: 14px; align-self: flex-start; }
+    .spinner { width: 16px; height: 16px; border: 2px solid #333; border-top-color: #1db954; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Staging area */
+    .staging-header {
+      padding: 20px; border-bottom: 1px solid #282828;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .staging-header h2 { font-size: 18px; font-weight: 700; }
+    .staging-count { color: #b3b3b3; font-size: 13px; }
+
+    .staging-tracks {
+      flex: 1; overflow-y: auto; padding: 8px;
     }
 
-    .track-info { flex: 1; min-width: 0; }
-    .track-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .track-artist { color: #b3b3b3; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .track-check { color: #1db954; font-size: 18px; margin-left: 8px; }
+    .staged-track {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 8px; transition: background 0.15s;
+    }
+    .staged-track:hover { background: #1a1a1a; }
+    .staged-track img { width: 40px; height: 40px; border-radius: 4px; }
+    .staged-track .st-info { flex: 1; min-width: 0; }
+    .staged-track .st-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .staged-track .st-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .staged-track .st-remove {
+      color: #b3b3b3; cursor: pointer; font-size: 16px; padding: 4px;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .staged-track:hover .st-remove { opacity: 1; }
+    .staged-track .st-remove:hover { color: #e74c3c; }
 
-    /* Playlist target */
-    .playlist-target {
-      background: #1a1a1a;
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 24px;
+    .staging-actions {
+      padding: 16px; border-top: 1px solid #282828;
+      display: flex; flex-direction: column; gap: 8px;
     }
 
-    .playlist-target select {
-      width: 100%;
-      background: #282828;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 14px;
-      margin-top: 8px;
-      outline: none;
+    .staging-actions select {
+      width: 100%; background: #282828; color: #fff; border: none;
+      border-radius: 8px; padding: 10px 14px; font-size: 14px; outline: none;
     }
 
-    .create-inline {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
+    .staging-actions .create-row {
+      display: flex; gap: 8px;
     }
 
-    .create-inline input {
-      flex: 1;
-      padding: 8px 14px;
-      border-radius: 8px;
-      border: none;
-      background: #282828;
-      color: #fff;
-      font-size: 14px;
-      outline: none;
+    .staging-actions .create-row input {
+      flex: 1; padding: 8px 12px; border-radius: 8px; border: none;
+      background: #282828; color: #fff; font-size: 13px; outline: none;
     }
+
+    .staging-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #535353; font-size: 14px; text-align: center; padding: 40px;
+    }
+
+    /* Library sidebar in chat */
+    .library-toggle {
+      color: #b3b3b3; font-size: 12px; cursor: pointer; padding: 8px 24px;
+      background: #181818; border-top: 1px solid #282828;
+    }
+    .library-toggle:hover { color: #fff; }
 
     /* Settings modal */
     .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      z-index: 200;
-      align-items: center;
-      justify-content: center;
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 200; align-items: center; justify-content: center;
     }
-
     .modal-overlay.open { display: flex; }
-
-    .modal {
-      background: #282828;
-      border-radius: 16px;
-      padding: 32px;
-      width: 420px;
-      max-width: 90vw;
-    }
-
+    .modal { background: #282828; border-radius: 16px; padding: 32px; width: 420px; max-width: 90vw; }
     .modal h2 { font-size: 20px; margin-bottom: 20px; }
-
-    .modal label {
-      display: block;
-      color: #b3b3b3;
-      font-size: 13px;
-      margin-bottom: 6px;
-      margin-top: 16px;
-    }
-
+    .modal label { display: block; color: #b3b3b3; font-size: 13px; margin-bottom: 6px; margin-top: 16px; }
     .modal label:first-of-type { margin-top: 0; }
-
-    .modal input {
-      width: 100%;
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: none;
-      background: #1a1a1a;
-      color: #fff;
-      font-size: 14px;
-      outline: none;
+    .modal input, .modal select {
+      width: 100%; padding: 10px 14px; border-radius: 8px; border: none;
+      background: #1a1a1a; color: #fff; font-size: 14px; outline: none;
     }
+    .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 
-    .modal .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 24px;
-    }
-
-    /* Loading */
-    .loading {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 20px;
-      color: #b3b3b3;
-    }
-
-    .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid #333;
-      border-top-color: #1db954;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Toast */
     .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #1db954;
-      color: #000;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: 600;
-      transform: translateY(80px);
-      opacity: 0;
-      transition: all 0.3s;
-      z-index: 300;
+      position: fixed; bottom: 24px; right: 24px; background: #1db954; color: #000;
+      padding: 12px 24px; border-radius: 8px; font-weight: 600;
+      transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 300;
     }
-
     .toast.show { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 768px) {
+      .app.active { flex-direction: column; }
+      .staging-col { width: 100%; max-height: 40vh; border-top: 1px solid #282828; }
+      .chat-col { border-right: none; }
+    }
   </style>
 </head>
 <body>
@@ -289,34 +210,43 @@
 
   <main class="landing" id="landing">
     <h1>Make playlists,<br><span>your way.</span></h1>
-    <p>Describe the vibe. AI finds the tracks. One click to save to Spotify.</p>
+    <p>Describe the vibe. Go back and forth with AI. Stage your tracks. Save to Spotify.</p>
     <button class="btn btn-green" onclick="login()" style="font-size:16px; padding:14px 40px;">
       Log in with Spotify
     </button>
   </main>
 
   <main class="app" id="app">
-    <div class="prompt-box">
-      <textarea id="prompt" placeholder="Describe what you want to listen to...&#10;&#10;e.g. &quot;chill lo-fi beats for studying&quot; or &quot;high energy workout mix with 2010s pop&quot;"></textarea>
-      <div class="prompt-actions">
-        <span class="hint">AI will suggest tracks based on your description</span>
-        <button class="btn btn-green" onclick="generate()">Generate</button>
+    <!-- Chat column -->
+    <div class="chat-col">
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg assistant">Hey! Tell me what kind of music you're in the mood for and I'll find tracks for you. You can keep refining — click the + on any track to stage it.</div>
+      </div>
+      <div class="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Describe what you want to hear..." autocomplete="off">
+        <button class="btn btn-green btn-sm" onclick="sendMessage()">Send</button>
       </div>
     </div>
 
-    <div id="results-area"></div>
-
-    <div class="playlist-target" id="playlist-target" style="display:none;">
-      <span class="section-title">Save to playlist</span>
-      <select id="playlist-select">
-        <option value="">Select a playlist...</option>
-      </select>
-      <div class="create-inline">
-        <input type="text" id="new-playlist-name" placeholder="Or create a new one...">
-        <button class="btn btn-green btn-sm" onclick="createPlaylist()">Create</button>
+    <!-- Staging column -->
+    <div class="staging-col">
+      <div class="staging-header">
+        <h2>Staged Tracks</h2>
+        <span class="staging-count" id="staging-count">0 tracks</span>
       </div>
-      <div style="margin-top:12px; text-align:right;">
-        <button class="btn btn-green" onclick="saveToPlaylist()">Add all tracks</button>
+      <div class="staging-tracks" id="staging-tracks">
+        <div class="staging-empty" id="staging-empty">Click + on suggested tracks to add them here</div>
+      </div>
+      <div class="staging-actions" id="staging-actions" style="display:none;">
+        <select id="playlist-select">
+          <option value="">Select a playlist...</option>
+        </select>
+        <div class="create-row">
+          <input type="text" id="new-playlist-name" placeholder="Or create new...">
+          <button class="btn btn-green btn-sm" onclick="createPlaylist()">Create</button>
+        </div>
+        <button class="btn btn-green" onclick="saveToPlaylist()" style="width:100%;">Save to Spotify</button>
+        <button class="btn btn-red btn-sm" onclick="clearStaged()" style="width:100%;">Clear all</button>
       </div>
     </div>
   </main>
@@ -325,9 +255,15 @@
   <div class="modal-overlay" id="settings-modal">
     <div class="modal">
       <h2>Settings</h2>
-      <label>Anthropic API Key</label>
-      <input type="password" id="setting-anthropic-key" placeholder="sk-ant-...">
-      <p style="color:#535353; font-size:12px; margin-top:6px;">Stored in your browser only. Never sent anywhere except Anthropic's API.</p>
+      <label>LLM Provider</label>
+      <select id="setting-provider">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (GPT)</option>
+        <option value="gemini">Google (Gemini)</option>
+      </select>
+      <label>API Key</label>
+      <input type="password" id="setting-api-key" placeholder="Paste your API key...">
+      <p style="color:#535353; font-size:12px; margin-top:6px;">Stored in your browser only. Sent directly to the provider's API.</p>
       <div class="modal-actions">
         <button class="btn btn-outline btn-sm" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-green btn-sm" onclick="saveSettings()">Save</button>
@@ -342,54 +278,43 @@
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
-      'user-read-private',
-      'user-read-email',
-      'playlist-modify-public',
-      'playlist-modify-private',
-      'playlist-read-private',
-      'user-top-read',
-      'user-library-read',
+      'user-read-private', 'user-read-email',
+      'playlist-modify-public', 'playlist-modify-private', 'playlist-read-private',
+      'user-top-read', 'user-library-read',
     ].join(' ');
     const SPOTIFY_API = 'https://api.spotify.com/v1';
 
     let accessToken = null;
     let userId = null;
-    let currentTracks = []; // {name, artist, uri, img}
+    let stagedTracks = []; // {name, artist, uri, img}
+    let conversationHistory = [];
+    let userLibrarySummary = '';
 
     // ---- Settings ----
-
     function openSettings() {
-      document.getElementById('setting-anthropic-key').value = localStorage.getItem('anthropic_key') || '';
+      document.getElementById('setting-provider').value = localStorage.getItem('llm_provider') || 'anthropic';
+      document.getElementById('setting-api-key').value = localStorage.getItem('llm_api_key') || '';
       document.getElementById('settings-modal').classList.add('open');
     }
-
-    function closeSettings() {
-      document.getElementById('settings-modal').classList.remove('open');
-    }
-
+    function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
     function saveSettings() {
-      const key = document.getElementById('setting-anthropic-key').value.trim();
-      if (key) {
-        localStorage.setItem('anthropic_key', key);
-      } else {
-        localStorage.removeItem('anthropic_key');
-      }
+      localStorage.setItem('llm_provider', document.getElementById('setting-provider').value);
+      const key = document.getElementById('setting-api-key').value.trim();
+      if (key) localStorage.setItem('llm_api_key', key);
+      else localStorage.removeItem('llm_api_key');
       closeSettings();
       toast('Settings saved');
     }
 
     // ---- PKCE OAuth ----
-
     function generateRandom(length) {
       const arr = new Uint8Array(length);
       crypto.getRandomValues(arr);
       return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
     }
-
     async function sha256(plain) {
       return await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
     }
-
     function base64url(buffer) {
       return btoa(String.fromCharCode(...new Uint8Array(buffer)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -401,15 +326,9 @@
       const state = generateRandom(16);
       sessionStorage.setItem('pkce_verifier', verifier);
       sessionStorage.setItem('oauth_state', state);
-
       const params = new URLSearchParams({
-        response_type: 'code',
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        redirect_uri: REDIRECT_URI,
-        state,
-        code_challenge_method: 'S256',
-        code_challenge: challenge,
+        response_type: 'code', client_id: CLIENT_ID, scope: SCOPES,
+        redirect_uri: REDIRECT_URI, state, code_challenge_method: 'S256', code_challenge: challenge,
       });
       window.location = 'https://accounts.spotify.com/authorize?' + params;
     }
@@ -418,19 +337,13 @@
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
       if (!code) return false;
-      if (params.get('state') !== sessionStorage.getItem('oauth_state')) {
-        toast('Auth error');
-        return false;
-      }
+      if (params.get('state') !== sessionStorage.getItem('oauth_state')) { toast('Auth error'); return false; }
       const res = await fetch('https://accounts.spotify.com/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: REDIRECT_URI,
-          client_id: CLIENT_ID,
-          code_verifier: sessionStorage.getItem('pkce_verifier'),
+          grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI,
+          client_id: CLIENT_ID, code_verifier: sessionStorage.getItem('pkce_verifier'),
         }),
       });
       const data = await res.json();
@@ -472,116 +385,311 @@
       location.reload();
     }
 
-    async function spotify(path, opts = {}) {
+    async function spotifyApi(path, opts = {}) {
       const res = await fetch(SPOTIFY_API + path, {
         ...opts,
         headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) },
       });
       if (res.status === 401) {
-        if (await refreshToken()) return spotify(path, opts);
-        logout();
-        return null;
+        if (await refreshToken()) return spotifyApi(path, opts);
+        logout(); return null;
       }
       return res.json();
     }
 
-    // ---- AI generation ----
+    // ---- Fetch user library for LLM context ----
+    async function fetchLibrarySummary() {
+      const [playlists, topTracks, topArtists, savedTracks] = await Promise.all([
+        spotifyApi('/me/playlists?limit=50'),
+        spotifyApi('/me/top/tracks?limit=30&time_range=medium_term'),
+        spotifyApi('/me/top/artists?limit=20&time_range=medium_term'),
+        spotifyApi('/me/tracks?limit=50'),
+      ]);
 
-    async function generate() {
-      const prompt = document.getElementById('prompt').value.trim();
-      if (!prompt) return;
+      let summary = '';
 
-      const apiKey = localStorage.getItem('anthropic_key');
-      if (!apiKey) {
-        toast('Set your Anthropic API key in settings first');
-        openSettings();
-        return;
+      if (playlists?.items?.length) {
+        summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks.total} tracks)`).join('\n') + '\n\n';
+      }
+      if (topArtists?.items?.length) {
+        summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${a.genres.slice(0,3).join(', ')})`).join('\n') + '\n\n';
+      }
+      if (topTracks?.items?.length) {
+        summary += 'TOP TRACKS:\n' + topTracks.items.map(t => `- ${t.name} by ${t.artists.map(a=>a.name).join(', ')}`).join('\n') + '\n\n';
+      }
+      if (savedTracks?.items?.length) {
+        summary += 'RECENTLY SAVED:\n' + savedTracks.items.slice(0, 30).map(i => `- ${i.track.name} by ${i.track.artists.map(a=>a.name).join(', ')}`).join('\n') + '\n';
       }
 
-      const area = document.getElementById('results-area');
-      area.innerHTML = '<div class="loading"><div class="spinner"></div>Thinking...</div>';
+      return summary;
+    }
 
-      try {
+    // ---- LLM ----
+    const SYSTEM_PROMPT = `You are Dannify, a music recommendation assistant. The user wants help building a Spotify playlist.
+
+You have access to their Spotify library data below. Use it to understand their taste, but also suggest things they might not know.
+
+When recommending songs, format each one on its own line as:
+TRACK: Title - Artist
+
+You can include conversational text too. Mix recommendations with discussion. Ask follow-up questions to narrow down the vibe.
+
+Keep responses concise — suggest 5-10 tracks at a time unless they ask for more. You can discuss, refine, swap tracks, suggest alternatives, etc.`;
+
+    async function callLLM(messages) {
+      const provider = localStorage.getItem('llm_provider') || 'anthropic';
+      const apiKey = localStorage.getItem('llm_api_key');
+      if (!apiKey) throw new Error('NO_KEY');
+
+      const systemMsg = SYSTEM_PROMPT + (userLibrarySummary ? '\n\n--- USER SPOTIFY LIBRARY ---\n' + userLibrarySummary : '');
+
+      if (provider === 'anthropic') {
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
+            'Content-Type': 'application/json', 'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
-            messages: [{
-              role: 'user',
-              content: `You are a music recommendation engine. Given a description, return a JSON array of 15-20 song recommendations. Each item should have "title" and "artist" fields. Only return the JSON array, nothing else. No markdown, no explanation.
-
-Description: ${prompt}`
-            }],
+            model: 'claude-sonnet-4-20250514', max_tokens: 1024,
+            system: systemMsg,
+            messages: messages,
           }),
         });
-
         const data = await res.json();
-        if (data.error) {
-          area.innerHTML = `<p style="color:#ff4444;padding:20px;">${esc(data.error.message)}</p>`;
-          return;
-        }
+        if (data.error) throw new Error(data.error.message);
+        return data.content[0].text;
 
-        const text = data.content[0].text.trim();
-        const songs = JSON.parse(text);
+      } else if (provider === 'openai') {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'system', content: systemMsg }, ...messages],
+          }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.choices[0].message.content;
 
-        // Search Spotify for each song
-        area.innerHTML = '<div class="loading"><div class="spinner"></div>Finding tracks on Spotify...</div>';
-        currentTracks = [];
-
-        const results = await Promise.all(songs.map(async (s) => {
-          const q = encodeURIComponent(`${s.title} ${s.artist}`);
-          const sr = await spotify(`/search?q=${q}&type=track&limit=1`);
-          if (sr?.tracks?.items?.[0]) {
-            const t = sr.tracks.items[0];
-            return { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
-          }
-          return null;
+      } else if (provider === 'gemini') {
+        const contents = messages.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
         }));
-
-        currentTracks = results.filter(Boolean);
-
-        area.innerHTML = `
-          <div class="results-section">
-            <div class="results-header">
-              <span class="section-title">${currentTracks.length} tracks found</span>
-            </div>
-            <div class="track-list">
-              ${currentTracks.map(t => `
-                <div class="track">
-                  <img src="${t.img}" alt="">
-                  <div class="track-info">
-                    <div class="track-name">${esc(t.name)}</div>
-                    <div class="track-artist">${esc(t.artist)}</div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
-
-        document.getElementById('playlist-target').style.display = 'block';
-        loadPlaylists();
-
-      } catch (err) {
-        area.innerHTML = `<p style="color:#ff4444;padding:20px;">Error: ${esc(err.message)}</p>`;
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemMsg }] },
+            contents,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.candidates[0].content.parts[0].text;
       }
     }
 
-    document.getElementById('prompt').addEventListener('keydown', e => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
+    // ---- Chat ----
+    function addChatMessage(role, html) {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      div.innerHTML = html;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    function showTyping() {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'typing';
+      div.id = 'typing-indicator';
+      div.innerHTML = '<div class="spinner"></div>Thinking...';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function hideTyping() {
+      document.getElementById('typing-indicator')?.remove();
+    }
+
+    async function resolveTrack(title, artist) {
+      const q = encodeURIComponent(`${title} ${artist}`);
+      const sr = await spotifyApi(`/search?q=${q}&type=track&limit=1`);
+      if (sr?.tracks?.items?.[0]) {
+        const t = sr.tracks.items[0];
+        return {
+          name: t.name,
+          artist: t.artists.map(a => a.name).join(', '),
+          uri: t.uri,
+          img: t.album.images[2]?.url || t.album.images[0]?.url || '',
+        };
+      }
+      return null;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      addChatMessage('user', esc(text));
+      conversationHistory.push({ role: 'user', content: text });
+
+      showTyping();
+
+      try {
+        const response = await callLLM(conversationHistory);
+        hideTyping();
+
+        conversationHistory.push({ role: 'assistant', content: response });
+
+        // Parse TRACK: lines and resolve them on Spotify
+        const lines = response.split('\n');
+        let htmlParts = [];
+        let trackPromises = [];
+
+        for (const line of lines) {
+          const trackMatch = line.match(/^TRACK:\s*(.+?)\s*-\s*(.+)$/i);
+          if (trackMatch) {
+            const idx = trackPromises.length;
+            trackPromises.push(resolveTrack(trackMatch[1].trim(), trackMatch[2].trim()));
+            htmlParts.push({ type: 'track', idx, raw: line });
+          } else {
+            htmlParts.push({ type: 'text', content: line });
+          }
+        }
+
+        const resolved = await Promise.all(trackPromises);
+
+        let html = '';
+        let textBuffer = [];
+
+        function flushText() {
+          if (textBuffer.length) {
+            const t = textBuffer.join('\n').trim();
+            if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+            textBuffer = [];
+          }
+        }
+
+        for (const part of htmlParts) {
+          if (part.type === 'text') {
+            textBuffer.push(part.content);
+          } else {
+            flushText();
+            const track = resolved[part.idx];
+            if (track) {
+              const isStaged = stagedTracks.some(s => s.uri === track.uri);
+              html += `
+                <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)">
+                  <img src="${track.img}" alt="">
+                  <div class="ts-info">
+                    <div class="ts-name">${esc(track.name)}</div>
+                    <div class="ts-artist">${esc(track.artist)}</div>
+                  </div>
+                  <span class="ts-add">${isStaged ? '&#10003;' : '+'}</span>
+                </div>`;
+            } else {
+              textBuffer.push(part.raw + ' (not found on Spotify)');
+            }
+          }
+        }
+        flushText();
+
+        addChatMessage('assistant', html);
+
+      } catch (err) {
+        hideTyping();
+        if (err.message === 'NO_KEY') {
+          toast('Set your API key in settings first');
+          openSettings();
+          conversationHistory.pop();
+        } else {
+          addChatMessage('assistant', `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`);
+          conversationHistory.pop();
+        }
+      }
+    }
+
+    document.getElementById('chat-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
     });
 
-    // ---- Playlists ----
+    // ---- Staging ----
+    function stageFromSuggestion(el) {
+      const uri = el.dataset.uri;
+      if (stagedTracks.some(s => s.uri === uri)) return;
 
+      stagedTracks.push({
+        name: el.dataset.name,
+        artist: el.dataset.artist,
+        uri: uri,
+        img: el.dataset.img,
+      });
+
+      el.classList.add('added');
+      el.querySelector('.ts-add').innerHTML = '&#10003;';
+      renderStaging();
+    }
+
+    function removeStaged(uri) {
+      stagedTracks = stagedTracks.filter(t => t.uri !== uri);
+      // Update any suggestion buttons
+      document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => {
+        el.classList.remove('added');
+        el.querySelector('.ts-add').textContent = '+';
+      });
+      renderStaging();
+    }
+
+    function clearStaged() {
+      const uris = stagedTracks.map(t => t.uri);
+      stagedTracks = [];
+      uris.forEach(uri => {
+        document.querySelectorAll(`.track-suggestion[data-uri="${uri}"]`).forEach(el => {
+          el.classList.remove('added');
+          el.querySelector('.ts-add').textContent = '+';
+        });
+      });
+      renderStaging();
+    }
+
+    function renderStaging() {
+      const container = document.getElementById('staging-tracks');
+      const empty = document.getElementById('staging-empty');
+      const actions = document.getElementById('staging-actions');
+      const count = document.getElementById('staging-count');
+
+      count.textContent = stagedTracks.length + ' track' + (stagedTracks.length !== 1 ? 's' : '');
+
+      if (!stagedTracks.length) {
+        container.innerHTML = '<div class="staging-empty" id="staging-empty">Click + on suggested tracks to add them here</div>';
+        actions.style.display = 'none';
+        return;
+      }
+
+      actions.style.display = 'flex';
+      container.innerHTML = stagedTracks.map(t => `
+        <div class="staged-track">
+          <img src="${t.img}" alt="">
+          <div class="st-info">
+            <div class="st-name">${esc(t.name)}</div>
+            <div class="st-artist">${esc(t.artist)}</div>
+          </div>
+          <span class="st-remove" onclick="removeStaged('${t.uri}')">&times;</span>
+        </div>
+      `).join('');
+    }
+
+    // ---- Playlists ----
     async function loadPlaylists() {
-      const data = await spotify('/me/playlists?limit=50');
+      const data = await spotifyApi('/me/playlists?limit=50');
       if (!data) return;
       const select = document.getElementById('playlist-select');
       select.innerHTML = '<option value="">Select a playlist...</option>' +
@@ -591,9 +699,8 @@ Description: ${prompt}`
     async function createPlaylist() {
       const name = document.getElementById('new-playlist-name').value.trim();
       if (!name) return;
-      const p = await spotify('/users/' + userId + '/playlists', {
-        method: 'POST',
-        body: JSON.stringify({ name, public: false }),
+      const p = await spotifyApi('/users/' + userId + '/playlists', {
+        method: 'POST', body: JSON.stringify({ name, public: false }),
       });
       if (p) {
         document.getElementById('new-playlist-name').value = '';
@@ -606,34 +713,27 @@ Description: ${prompt}`
     async function saveToPlaylist() {
       const playlistId = document.getElementById('playlist-select').value;
       if (!playlistId) { toast('Select a playlist first'); return; }
-      if (!currentTracks.length) { toast('No tracks to add'); return; }
-
-      const uris = currentTracks.map(t => t.uri);
-      // Spotify allows max 100 per request
+      if (!stagedTracks.length) { toast('No tracks staged'); return; }
+      const uris = stagedTracks.map(t => t.uri);
       for (let i = 0; i < uris.length; i += 100) {
-        await spotify('/playlists/' + playlistId + '/tracks', {
-          method: 'POST',
-          body: JSON.stringify({ uris: uris.slice(i, i + 100) }),
+        await spotifyApi('/playlists/' + playlistId + '/tracks', {
+          method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }),
         });
       }
       toast(`Added ${uris.length} tracks!`);
     }
 
     // ---- Init ----
-
     async function init() {
       if (window.location.search.includes('code=')) await handleCallback();
 
       const stored = localStorage.getItem('spotify_token');
       const expires = localStorage.getItem('spotify_token_expires');
-      if (stored && expires && Date.now() < Number(expires)) {
-        accessToken = stored;
-      } else if (localStorage.getItem('spotify_refresh_token')) {
-        await refreshToken();
-      }
+      if (stored && expires && Date.now() < Number(expires)) accessToken = stored;
+      else if (localStorage.getItem('spotify_refresh_token')) await refreshToken();
 
       if (accessToken) {
-        const me = await spotify('/me');
+        const me = await spotifyApi('/me');
         if (!me) return;
         userId = me.id;
         document.getElementById('landing').style.display = 'none';
@@ -644,6 +744,10 @@ Description: ${prompt}`
           <span>${esc(me.display_name)}</span>
           <button class="btn btn-outline btn-sm" onclick="logout()">Log out</button>
         `;
+        loadPlaylists();
+
+        // Fetch library in background for LLM context
+        fetchLibrarySummary().then(summary => { userLibrarySummary = summary; });
       } else {
         document.getElementById('user-area').innerHTML = `
           <button class="btn btn-green btn-sm" onclick="login()">Log in</button>
