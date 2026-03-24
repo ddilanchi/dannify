@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dannify</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #121212;
+      color: #fff;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      background: #000;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1db954;
+      letter-spacing: -1px;
+    }
+
+    .user-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .user-area img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+    }
+
+    .btn {
+      padding: 10px 24px;
+      border-radius: 24px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: transform 0.1s, background 0.2s;
+    }
+
+    .btn:hover { transform: scale(1.04); }
+    .btn-green { background: #1db954; color: #000; }
+    .btn-outline { background: transparent; color: #fff; border: 1px solid #fff; }
+    .btn-sm { padding: 6px 16px; font-size: 13px; }
+
+    .landing {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 70vh;
+      text-align: center;
+      gap: 24px;
+    }
+
+    .landing h1 { font-size: 52px; font-weight: 800; }
+    .landing h1 span { color: #1db954; }
+    .landing p { color: #b3b3b3; font-size: 18px; max-width: 500px; }
+
+    .app { display: none; padding: 24px 40px; }
+    .app.active { display: block; }
+
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 24px 0 16px;
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: 24px;
+      border: none;
+      background: #282828;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .search-bar input::placeholder { color: #727272; }
+
+    .track-list { display: flex; flex-direction: column; gap: 4px; }
+
+    .track {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+
+    .track:hover { background: #282828; }
+
+    .track img {
+      width: 48px;
+      height: 48px;
+      border-radius: 4px;
+    }
+
+    .track-info { flex: 1; min-width: 0; }
+    .track-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-artist { color: #b3b3b3; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .playlists-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .playlist-card {
+      background: #181818;
+      padding: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .playlist-card:hover { background: #282828; }
+    .playlist-card.selected { outline: 2px solid #1db954; }
+
+    .playlist-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+
+    .playlist-card .name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .playlist-card .count { color: #b3b3b3; font-size: 13px; }
+
+    .create-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .create-form input {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 24px;
+      border: none;
+      background: #282828;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1db954;
+      color: #000;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 100;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    .placeholder-img {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #282828;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      color: #535353;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Dannify</div>
+    <div class="user-area" id="user-area"></div>
+  </header>
+
+  <main class="landing" id="landing">
+    <h1>Make playlists,<br><span>your way.</span></h1>
+    <p>Log in with Spotify, search for tracks, and build playlists — powered by AI coming soon.</p>
+    <button class="btn btn-green" onclick="login()" style="font-size:16px; padding:14px 40px;">
+      Log in with Spotify
+    </button>
+  </main>
+
+  <main class="app" id="app">
+    <h2 class="section-title">Search Tracks</h2>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search for a song or artist...">
+      <button class="btn btn-green btn-sm" onclick="doSearch()">Search</button>
+    </div>
+    <div class="track-list" id="search-results"></div>
+
+    <h2 class="section-title">Your Playlists</h2>
+    <div class="create-form">
+      <input type="text" id="new-playlist-name" placeholder="New playlist name...">
+      <button class="btn btn-green btn-sm" onclick="createPlaylist()">Create</button>
+    </div>
+    <div class="playlists-grid" id="playlists"></div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Config ----
+    // Paste your Spotify Client ID here
+    const CLIENT_ID = 'YOUR_CLIENT_ID';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const SCOPES = [
+      'user-read-private',
+      'user-read-email',
+      'playlist-modify-public',
+      'playlist-modify-private',
+      'playlist-read-private',
+      'user-top-read',
+      'user-library-read',
+    ].join(' ');
+    const SPOTIFY_API = 'https://api.spotify.com/v1';
+
+    let accessToken = null;
+    let userId = null;
+    let selectedPlaylistId = null;
+
+    // ---- PKCE helpers ----
+
+    function generateRandom(length) {
+      const arr = new Uint8Array(length);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function sha256(plain) {
+      const data = new TextEncoder().encode(plain);
+      return await crypto.subtle.digest('SHA-256', data);
+    }
+
+    function base64url(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function login() {
+      const verifier = generateRandom(64);
+      const challenge = base64url(await sha256(verifier));
+      const state = generateRandom(16);
+
+      sessionStorage.setItem('pkce_verifier', verifier);
+      sessionStorage.setItem('oauth_state', state);
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        redirect_uri: REDIRECT_URI,
+        state: state,
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+      });
+
+      window.location = 'https://accounts.spotify.com/authorize?' + params;
+    }
+
+    async function handleCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+
+      if (!code) return false;
+
+      if (state !== sessionStorage.getItem('oauth_state')) {
+        toast('Auth error: state mismatch');
+        return false;
+      }
+
+      const verifier = sessionStorage.getItem('pkce_verifier');
+
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: REDIRECT_URI,
+          client_id: CLIENT_ID,
+          code_verifier: verifier,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.access_token) {
+        accessToken = data.access_token;
+        localStorage.setItem('spotify_token', accessToken);
+        localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
+        if (data.refresh_token) {
+          localStorage.setItem('spotify_refresh_token', data.refresh_token);
+        }
+        // Clean URL
+        window.history.replaceState({}, '', REDIRECT_URI);
+        return true;
+      }
+
+      toast('Auth failed');
+      return false;
+    }
+
+    async function refreshToken() {
+      const rt = localStorage.getItem('spotify_refresh_token');
+      if (!rt) return false;
+
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: rt,
+          client_id: CLIENT_ID,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.access_token) {
+        accessToken = data.access_token;
+        localStorage.setItem('spotify_token', accessToken);
+        localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
+        if (data.refresh_token) {
+          localStorage.setItem('spotify_refresh_token', data.refresh_token);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function logout() {
+      accessToken = null;
+      localStorage.removeItem('spotify_token');
+      localStorage.removeItem('spotify_token_expires');
+      localStorage.removeItem('spotify_refresh_token');
+      location.reload();
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(SPOTIFY_API + path, {
+        ...opts,
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type': 'application/json',
+          ...(opts.headers || {}),
+        },
+      });
+      if (res.status === 401) {
+        if (await refreshToken()) return api(path, opts);
+        logout();
+        return null;
+      }
+      return res.json();
+    }
+
+    // ---- App logic ----
+
+    async function init() {
+      // Check for callback
+      if (window.location.search.includes('code=')) {
+        await handleCallback();
+      }
+
+      // Check stored token
+      const stored = localStorage.getItem('spotify_token');
+      const expires = localStorage.getItem('spotify_token_expires');
+      if (stored && expires && Date.now() < Number(expires)) {
+        accessToken = stored;
+      } else if (localStorage.getItem('spotify_refresh_token')) {
+        await refreshToken();
+      }
+
+      if (accessToken) {
+        const me = await api('/me');
+        if (!me) return;
+        userId = me.id;
+
+        document.getElementById('landing').style.display = 'none';
+        document.getElementById('app').classList.add('active');
+        const img = me.images?.[0]?.url;
+        document.getElementById('user-area').innerHTML = `
+          ${img ? `<img src="${img}" alt="">` : ''}
+          <span>${esc(me.display_name)}</span>
+          <button class="btn btn-outline btn-sm" onclick="logout()">Log out</button>
+        `;
+        loadPlaylists();
+      } else {
+        document.getElementById('user-area').innerHTML = `
+          <button class="btn btn-green btn-sm" onclick="login()">Log in</button>
+        `;
+      }
+    }
+
+    async function doSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      if (!q) return;
+      const data = await api('/search?q=' + encodeURIComponent(q) + '&type=track&limit=20');
+      if (!data) return;
+      const tracks = data.tracks?.items || [];
+      document.getElementById('search-results').innerHTML = tracks.map(t => `
+        <div class="track">
+          <img src="${t.album.images[2]?.url || t.album.images[0]?.url || ''}" alt="">
+          <div class="track-info">
+            <div class="track-name">${esc(t.name)}</div>
+            <div class="track-artist">${esc(t.artists.map(a => a.name).join(', '))}</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="addTrack('${t.uri}')">+ Add</button>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('search-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch();
+    });
+
+    async function loadPlaylists() {
+      const data = await api('/me/playlists?limit=50');
+      if (!data) return;
+      const items = data.items || [];
+      document.getElementById('playlists').innerHTML = items.map(p => {
+        const img = p.images?.[0]?.url;
+        const sel = p.id === selectedPlaylistId ? ' selected' : '';
+        return `
+          <div class="playlist-card${sel}" onclick="selectPlaylist('${p.id}', this)">
+            ${img ? `<img src="${img}" alt="">` : `<div class="placeholder-img">&#9835;</div>`}
+            <div class="name">${esc(p.name)}</div>
+            <div class="count">${p.tracks.total} tracks</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectPlaylist(id, el) {
+      document.querySelectorAll('.playlist-card.selected').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedPlaylistId = id;
+      toast('Playlist selected');
+    }
+
+    async function addTrack(uri) {
+      if (!selectedPlaylistId) {
+        toast('Click a playlist first!');
+        return;
+      }
+      await api('/playlists/' + selectedPlaylistId + '/tracks', {
+        method: 'POST',
+        body: JSON.stringify({ uris: [uri] }),
+      });
+      toast('Track added!');
+      loadPlaylists();
+    }
+
+    async function createPlaylist() {
+      const name = document.getElementById('new-playlist-name').value.trim();
+      if (!name) return;
+      await api('/users/' + userId + '/playlists', {
+        method: 'POST',
+        body: JSON.stringify({ name, public: false }),
+      });
+      document.getElementById('new-playlist-name').value = '';
+      toast('Created: ' + name);
+      loadPlaylists();
+    }
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>
