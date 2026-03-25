@@ -1410,7 +1410,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         }
 
         const seed = artistIds[0];
-        const testUrl = `https://api.spotify.com/v1/recommendations?limit=100&seed_artists=${seed}`;
+        const testUrl = `https://api.spotify.com/v1/recommendations?limit=100&seed_artists=${seed}&market=US`;
         console.log('Test URL:', testUrl);
         console.log('Access Token:', accessToken ? 'exists' : 'missing');
 
