@@ -1293,11 +1293,11 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding albums and tracks you\'re missing...</div>';
 
-        // For user's top artists, find their top albums/tracks they haven't saved
+        // For RELATED artists (blindspots), find their top albums/tracks user hasn't saved
         const missingAlbums = [];
         const missingTracks = [];
 
-        for (const artist of topItems.slice(0, 8)) {
+        for (const { artist } of blindspotArtists.slice(0, 8)) {
           const [albums, artistTopTracks] = await Promise.all([
             spotifyApi(`/artists/${artist.id}/albums?include_groups=album&limit=10&market=US`),
             spotifyApi(`/artists/${artist.id}/top-tracks?market=US`),
