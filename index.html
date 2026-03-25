@@ -1395,34 +1395,28 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         const topArtists = await spotifyApi('/me/top/artists?limit=5&time_range=medium_term');
         const topTracks = await spotifyApi('/me/top/tracks?limit=5&time_range=medium_term');
 
-        const seedArtists = topArtists?.items?.slice(0, 3).map(a => a.id).join(',') || '';
-        const seedTracks = topTracks?.items?.slice(0, 2).map(t => t.id).join(',') || '';
+        const artistIds = topArtists?.items?.slice(0, 3).map(a => a.id) || [];
+        const trackIds = topTracks?.items?.slice(0, 2).map(t => t.id) || [];
 
-        if (!seedArtists && !seedTracks) {
+        if (artistIds.length === 0 && trackIds.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">Not enough data. Listen to more music first!</p>';
           return;
         }
 
-        // Fetch recommendations in batches (API limit is 100 per request)
-        const allTracks = [];
-        const batches = Math.ceil(count / 100);
+        // Build recommendations query with proper URL encoding
+        let params = new URLSearchParams();
+        params.append('limit', 100);
 
-        for (let i = 0; i < batches; i++) {
-          const limit = Math.min(100, count - allTracks.length);
-          const recs = await spotifyApi(
-            `/recommendations?limit=${limit}&seed_artists=${seedArtists}&seed_tracks=${seedTracks}`
-          );
-
-          if (recs?.tracks) {
-            allTracks.push(...recs.tracks);
-          }
-
-          // Rotate seeds for variety (every other batch)
-          if (i % 2 === 0) {
-            const newSeeds = await spotifyApi('/me/top/artists?limit=10&offset=5&time_range=long_term');
-            // Could rotate artists here for more variety
-          }
+        if (artistIds.length > 0) {
+          params.append('seed_artists', artistIds.join(','));
         }
+        if (trackIds.length > 0) {
+          params.append('seed_tracks', trackIds.join(','));
+        }
+
+        // Fetch recommendations (single request for better results)
+        const recs = await spotifyApi(`/recommendations?${params.toString()}`);
+        const allTracks = recs?.tracks || [];
 
         // Remove duplicates and build HTML
         const seen = new Set();
