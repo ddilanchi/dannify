@@ -552,7 +552,15 @@
     function updateModelDropdown() {
       const provider = document.getElementById('setting-provider').value;
       const select = document.getElementById('setting-model');
-      const saved = localStorage.getItem('llm_model');
+      let saved = localStorage.getItem('llm_model');
+
+      // Validate saved model exists in current MODELS list
+      const modelExists = MODELS[provider].some(m => m.id === saved);
+      if (!modelExists) {
+        saved = MODELS[provider][0].id; // Default to first available
+        localStorage.setItem('llm_model', saved);
+      }
+
       select.innerHTML = MODELS[provider].map(m =>
         `<option value="${m.id}" ${m.id === saved ? 'selected' : ''}>${m.name}</option>`
       ).join('');
