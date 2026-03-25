@@ -1,6 +1,6 @@
 # Dannify Project Status
 
-**Current Version:** 1.1.2
+**Current Version:** 1.1.3
 
 ## What We're Doing
 Spotify playlist builder with LLM-powered features supporting Claude, GPT, and Gemini models.
@@ -27,6 +27,7 @@ Spotify playlist builder with LLM-powered features supporting Claude, GPT, and G
 - [ ] Deploy to GitHub Pages with version tracking
 
 ## Version History
+- **1.1.3** (2026-03-24) — Fixed blindspots to recommend related artists instead of top artists
 - **1.1.2** (2026-03-24) — Fixed localStorage validation for model list updates
 - **1.1.1** (2026-03-24) — Fixed Gemini 3.1 model ID format
 - **1.1.0** (2026-03-24) — Added comprehensive AI model support, auto-fetch script
