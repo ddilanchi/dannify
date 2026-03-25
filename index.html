@@ -1251,47 +1251,54 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
         ]);
 
-        const artistTrackCount = new Map(); // artist id -> count of tracks user has
+        // Track artists the user has actively chosen (saved/top) vs passively heard (playlists)
+        const activeArtistCount = new Map(); // artist id -> count from saved/top tracks only
+        const allKnownArtists = new Set(); // all artist IDs seen anywhere
         const myTrackIds = new Set();
         const myAlbumIds = new Set();
+        const myAlbumNames = new Set(); // normalized names for fuzzy matching
 
-        // Collect what user already knows, counting per artist
-        function countArtist(id) { artistTrackCount.set(id, (artistTrackCount.get(id) || 0) + 1); }
+        function countActive(id) { activeArtistCount.set(id, (activeArtistCount.get(id) || 0) + 1); allKnownArtists.add(id); }
+        function normalizeAlbum(name) { return (name || '').toLowerCase().replace(/\s*[\(\[].*?[\)\]]\s*/g, '').replace(/[^a-z0-9]/g, '').trim(); }
+        function addAlbum(album) { if (album?.id) myAlbumIds.add(album.id); if (album?.name) myAlbumNames.add(normalizeAlbum(album.name)); }
 
-        (topArtists?.items || []).forEach(a => countArtist(a.id));
-        (savedTracks?.items || []).forEach(i => { myTrackIds.add(i.track.id); myAlbumIds.add(i.track.album?.id); i.track.artists.forEach(a => countArtist(a.id)); });
-        (topTracks?.items || []).forEach(t => { myTrackIds.add(t.id); myAlbumIds.add(t.album?.id); t.artists.forEach(a => countArtist(a.id)); });
+        // Top artists count heavily — these are artists the user actively listens to
+        (topArtists?.items || []).forEach(a => { countActive(a.id); countActive(a.id); countActive(a.id); }); // weight x3
+        (savedTracks?.items || []).forEach(i => { myTrackIds.add(i.track.id); addAlbum(i.track.album); i.track.artists.forEach(a => countActive(a.id)); });
+        (topTracks?.items || []).forEach(t => { myTrackIds.add(t.id); addAlbum(t.album); t.artists.forEach(a => countActive(a.id)); });
 
-        // Also scan playlists for artist/track coverage
+        // Playlist tracks only contribute to track/album matching, NOT artist blindspot scoring
         if (cachedPlaylists) {
           const playlistSamples = cachedPlaylists.slice(0, 10);
           for (const pl of playlistSamples) {
             const tracks = await fetchAllPlaylistTracks(pl.id);
             tracks.forEach(i => {
               myTrackIds.add(i.track.id);
-              myAlbumIds.add(i.track.album?.id);
-              i.track.artists.forEach(a => countArtist(a.id));
+              addAlbum(i.track.album);
+              i.track.artists.forEach(a => allKnownArtists.add(a.id));
             });
           }
         }
 
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding related artists you\'re missing...</div>';
 
-        // Get related artists for top artists — find ones user barely listens to (0-2 tracks)
+        // Get related artists — find ones user doesn't actively listen to
         const missingArtists = new Map();
         const topItems = topArtists?.items || [];
+        const topArtistIds = new Set(topItems.map(a => a.id));
 
         for (const artist of topItems.slice(0, 15)) {
           const related = await spotifyApi(`/artists/${artist.id}/related-artists`);
           if (!related?.artists) continue;
           for (const ra of related.artists) {
-            const count = artistTrackCount.get(ra.id) || 0;
-            if (count <= 5 && !missingArtists.has(ra.id)) {
+            if (topArtistIds.has(ra.id)) continue; // skip user's own top artists
+            const activeCount = activeArtistCount.get(ra.id) || 0;
+            if (activeCount <= 2 && !missingArtists.has(ra.id)) {
               missingArtists.set(ra.id, {
                 artist: ra,
                 relatedTo: artist.name,
                 popularity: ra.popularity,
-                userTrackCount: count,
+                userTrackCount: activeCount,
               });
             }
           }
@@ -1316,7 +1323,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
           if (albums?.items) {
             for (const album of albums.items) {
-              if (!myAlbumIds.has(album.id)) {
+              if (!myAlbumIds.has(album.id) && !myAlbumNames.has(normalizeAlbum(album.name))) {
                 missingAlbums.push({ album, artistName: artist.name });
                 if (missingAlbums.length >= 10) break;
               }
@@ -1386,77 +1393,122 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     }
 
     // ---- Discover Infinitely ----
+    // Note: Spotify removed /recommendations endpoint in 2024.
+    // This uses related-artists + top-tracks as an alternative.
     async function discoverInfinitely(count = 50) {
       const result = document.getElementById('discover-result');
       result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Generating recommendations...</div>';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
 
       try {
-        const topArtists = await spotifyApi('/me/top/artists?limit=5&time_range=medium_term');
-        const topTracks = await spotifyApi('/me/top/tracks?limit=5&time_range=medium_term');
+        // Get seeds: user's top artists across time ranges for variety
+        const [topShort, topMed, topLong] = await Promise.all([
+          spotifyApi('/me/top/artists?limit=10&time_range=short_term'),
+          spotifyApi('/me/top/artists?limit=10&time_range=medium_term'),
+          spotifyApi('/me/top/artists?limit=10&time_range=long_term'),
+        ]);
 
-        const artistIds = topArtists?.items?.slice(0, 3).map(a => a.id) || [];
-        const trackIds = topTracks?.items?.slice(0, 2).map(t => t.id) || [];
-
-        if (artistIds.length === 0 && trackIds.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">Not enough data. Listen to more music first!</p>';
-          return;
-        }
-
-        // Test: fetch just one artist seed
-        if (!artistIds[0]) {
-          result.innerHTML = '<p style="color:#ff4444;">No top artists found</p>';
-          return;
-        }
-
-        const seed = artistIds[0];
-        const testUrl = `https://api.spotify.com/v1/recommendations?limit=100&seed_artists=${seed}&market=US`;
-        console.log('Test URL:', testUrl);
-        console.log('Access Token:', accessToken ? 'exists' : 'missing');
-
-        const res = await fetch(testUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
+        // Merge and deduplicate top artists, preferring variety
+        const seenArtists = new Set();
+        const seedArtists = [];
+        for (const list of [topShort?.items, topMed?.items, topLong?.items]) {
+          for (const a of (list || [])) {
+            if (!seenArtists.has(a.id)) { seenArtists.add(a.id); seedArtists.push(a); }
           }
-        });
+        }
 
-        console.log('Response status:', res.status, res.statusText);
-        const body = await res.text();
-        console.log('Response body:', body);
-
-        if (!res.ok) {
-          result.innerHTML = `<p style="color:#ff4444;">Spotify API Error ${res.status}: ${body}</p>`;
+        if (seedArtists.length === 0) {
+          result.innerHTML = '<p style="color:#ff4444;">Not enough listening data. Listen to more music first!</p>';
           return;
         }
 
-        const recs = JSON.parse(body);
-        const allTracks = recs?.tracks || [];
+        // Collect user's existing track IDs to filter them out
+        const myTrackIds = new Set();
+        const topTracks = await spotifyApi('/me/top/tracks?limit=50&time_range=medium_term');
+        (topTracks?.items || []).forEach(t => myTrackIds.add(t.id));
+        const saved = await spotifyApi('/me/tracks?limit=50');
+        (saved?.items || []).forEach(i => myTrackIds.add(i.track.id));
+
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding related artists and their best tracks...</div>';
+
+        // Get related artists for each seed, collect unique ones
+        const relatedMap = new Map();
+        const numSeeds = Math.min(seedArtists.length, Math.ceil(count / 5));
+        for (const artist of seedArtists.slice(0, numSeeds)) {
+          const related = await spotifyApi(`/artists/${artist.id}/related-artists`);
+          if (!related?.artists) continue;
+          for (const ra of related.artists) {
+            if (!seenArtists.has(ra.id) && !relatedMap.has(ra.id)) {
+              relatedMap.set(ra.id, { artist: ra, viaArtist: artist.name });
+            }
+          }
+        }
+
+        // Shuffle related artists for variety, then get their top tracks
+        const relatedList = Array.from(relatedMap.values());
+        for (let i = relatedList.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [relatedList[i], relatedList[j]] = [relatedList[j], relatedList[i]];
+        }
+
+        const allTracks = [];
+        const seenTrackIds = new Set();
+        const batchSize = 5; // fetch top tracks in parallel batches
+
+        for (let i = 0; i < relatedList.length && allTracks.length < count; i += batchSize) {
+          const batch = relatedList.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(({ artist }) => spotifyApi(`/artists/${artist.id}/top-tracks?market=US`))
+          );
+          for (let j = 0; j < results.length; j++) {
+            const tracks = results[j]?.tracks || [];
+            for (const t of tracks) {
+              if (!seenTrackIds.has(t.id) && !myTrackIds.has(t.id)) {
+                seenTrackIds.add(t.id);
+                allTracks.push({ ...t, _via: batch[j].viaArtist });
+                if (allTracks.length >= count) break;
+              }
+            }
+            if (allTracks.length >= count) break;
+          }
+        }
+
+        // If still not enough, also pull top tracks from user's own top artists (ones they haven't saved)
+        if (allTracks.length < count) {
+          for (const artist of seedArtists.slice(0, 10)) {
+            if (allTracks.length >= count) break;
+            const artistTracks = await spotifyApi(`/artists/${artist.id}/top-tracks?market=US`);
+            for (const t of (artistTracks?.tracks || [])) {
+              if (!seenTrackIds.has(t.id) && !myTrackIds.has(t.id)) {
+                seenTrackIds.add(t.id);
+                allTracks.push({ ...t, _via: artist.name });
+                if (allTracks.length >= count) break;
+              }
+            }
+          }
+        }
 
         if (allTracks.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No recommendations found.</p>';
+          result.innerHTML = '<p style="color:#ff4444;">No new tracks found. Try again later!</p>';
           return;
         }
 
-        // Remove duplicates and build HTML
-        const seen = new Set();
-        const uniqueTracks = allTracks.filter(t => {
-          if (seen.has(t.id)) return false;
-          seen.add(t.id);
-          return true;
-        }).slice(0, count);
-
-        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Discovered ${uniqueTracks.length} tracks</p>`;
-        html += uniqueTracks.map(t => `
-          <div class="dupe-item" onclick="addTrackToStaging('${t.id}', '${esc(t.name)}', '${t.artists[0]?.name || ''}', '${t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || ''}')">
-            <img src="${t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || ''}" alt="">
+        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Discovered ${allTracks.length} tracks</p>`;
+        html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:12px;">Based on ${numSeeds} of your top artists &middot; click + to stage</p>`;
+        html += allTracks.map(t => {
+          const uri = `spotify:track:${t.id}`;
+          const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+          const isStaged = stagedTracks.some(s => s.uri === uri);
+          return `
+          <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${uri}" data-name="${esc(t.name)}" data-artist="${esc(t.artists[0]?.name || '')}" data-img="${img}" onclick="stageFromSuggestion(this)">
+            <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
             <div class="dupe-info">
               <div class="dupe-name">${esc(t.name)}</div>
-              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${t.album?.name || 'Unknown'}</div>
+              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')} &middot; <span style="color:#888;">via ${esc(t._via)}</span></div>
             </div>
-            <div style="color:#1db954; font-size:20px; cursor:pointer;">+</div>
-          </div>`).join('');
+            <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
+          </div>`;
+        }).join('');
 
         result.innerHTML = html;
       } catch (err) {
