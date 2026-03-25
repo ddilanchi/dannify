@@ -415,6 +415,17 @@
             <div class="tool-result" id="blindspot-result" style="display:none;"></div>
           </div>
 
+          <!-- Discover Infinitely -->
+          <div class="tool-card">
+            <h3>Discover Infinitely</h3>
+            <p class="tool-desc">Never-ending recommendations based on your taste (like Discover Weekly, but infinite)</p>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="discoverInfinitely()">Generate 50 tracks</button>
+              <button class="btn btn-outline btn-sm" onclick="discoverInfinitely(100)">100 tracks</button>
+            </div>
+            <div class="tool-result" id="discover-result" style="display:none;"></div>
+          </div>
+
           <!-- Export Playlist -->
           <div class="tool-card">
             <h3>Export Playlist</h3>
@@ -1270,12 +1281,12 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         const missingArtists = new Map();
         const topItems = topArtists?.items || [];
 
-        for (const artist of topItems.slice(0, 10)) {
+        for (const artist of topItems.slice(0, 15)) {
           const related = await spotifyApi(`/artists/${artist.id}/related-artists`);
           if (!related?.artists) continue;
           for (const ra of related.artists) {
             const count = artistTrackCount.get(ra.id) || 0;
-            if (count <= 2 && !missingArtists.has(ra.id)) {
+            if (count <= 5 && !missingArtists.has(ra.id)) {
               missingArtists.set(ra.id, {
                 artist: ra,
                 relatedTo: artist.name,
@@ -1369,6 +1380,70 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         if (!html) html = '<p>Couldn\'t find any blindspots — you\'re pretty thorough!</p>';
         result.innerHTML = html;
 
+      } catch (err) {
+        result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+      }
+    }
+
+    // ---- Discover Infinitely ----
+    async function discoverInfinitely(count = 50) {
+      const result = document.getElementById('discover-result');
+      result.style.display = 'block';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Generating recommendations...</div>';
+
+      try {
+        const topArtists = await spotifyApi('/me/top/artists?limit=5&time_range=medium_term');
+        const topTracks = await spotifyApi('/me/top/tracks?limit=5&time_range=medium_term');
+
+        const seedArtists = topArtists?.items?.slice(0, 3).map(a => a.id).join(',') || '';
+        const seedTracks = topTracks?.items?.slice(0, 2).map(t => t.id).join(',') || '';
+
+        if (!seedArtists && !seedTracks) {
+          result.innerHTML = '<p style="color:#ff4444;">Not enough data. Listen to more music first!</p>';
+          return;
+        }
+
+        // Fetch recommendations in batches (API limit is 100 per request)
+        const allTracks = [];
+        const batches = Math.ceil(count / 100);
+
+        for (let i = 0; i < batches; i++) {
+          const limit = Math.min(100, count - allTracks.length);
+          const recs = await spotifyApi(
+            `/recommendations?limit=${limit}&seed_artists=${seedArtists}&seed_tracks=${seedTracks}`
+          );
+
+          if (recs?.tracks) {
+            allTracks.push(...recs.tracks);
+          }
+
+          // Rotate seeds for variety (every other batch)
+          if (i % 2 === 0) {
+            const newSeeds = await spotifyApi('/me/top/artists?limit=10&offset=5&time_range=long_term');
+            // Could rotate artists here for more variety
+          }
+        }
+
+        // Remove duplicates and build HTML
+        const seen = new Set();
+        const uniqueTracks = allTracks.filter(t => {
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        }).slice(0, count);
+
+        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Discovered ${uniqueTracks.length} tracks</p>`;
+        html += uniqueTracks.map(t => `
+          <div class="dupe-item" onclick="addTrackToStaging('${t.id}', '${esc(t.name)}', '${t.artists[0]?.name || ''}', '${t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || ''}')">
+            <img src="${t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || ''}" alt="">
+            <div class="dupe-info">
+              <div class="dupe-name">${esc(t.name)}</div>
+              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${t.album?.name || 'Unknown'}</div>
+            </div>
+            <div style="color:#1db954; font-size:20px; cursor:pointer;">+</div>
+          </div>`).join('');
+
+        result.innerHTML = html;
       } catch (err) {
         result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
       }
