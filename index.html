@@ -690,7 +690,11 @@
       }
       if (res.status === 204 || res.headers.get('content-length') === '0') return {};
       const text = await res.text();
-      try { return JSON.parse(text); } catch { return {}; }
+      try {
+        const data = JSON.parse(text);
+        if (data.error) console.warn(`Spotify API error on ${path}:`, data.error);
+        return data;
+      } catch { return {}; }
     }
 
     // ---- Fetch all tracks from a playlist (handles pagination) ----
@@ -1280,20 +1284,26 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           }
         }
 
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding related artists you\'re missing...</div>';
+        const topItems = topArtists?.items || [];
+        const debugInfo = { topArtists: topItems.length, savedTracks: (savedTracks?.items || []).length, topTracks: (topTracks?.items || []).length, activeArtists: activeArtistCount.size, myTracks: myTrackIds.size, myAlbums: myAlbumIds.size };
+        console.log('Blindspots debug:', debugInfo);
+
+        result.innerHTML = `<div class="typing"><div class="spinner"></div>Finding related artists you're missing... (${topItems.length} top artists found)</div>`;
 
         // Get related artists — find ones user doesn't actively listen to
         const missingArtists = new Map();
-        const topItems = topArtists?.items || [];
         const topArtistIds = new Set(topItems.map(a => a.id));
+        let totalRelated = 0, skippedTop = 0, skippedActive = 0;
 
         for (const artist of topItems.slice(0, 15)) {
           const related = await spotifyApi(`/artists/${artist.id}/related-artists`);
-          if (!related?.artists) continue;
+          if (!related?.artists) { console.warn('No related artists for', artist.name, related); continue; }
           for (const ra of related.artists) {
-            if (topArtistIds.has(ra.id)) continue; // skip user's own top artists
+            totalRelated++;
+            if (topArtistIds.has(ra.id)) { skippedTop++; continue; }
             const activeCount = activeArtistCount.get(ra.id) || 0;
-            if (activeCount <= 2 && !missingArtists.has(ra.id)) {
+            if (activeCount > 2) { skippedActive++; continue; }
+            if (!missingArtists.has(ra.id)) {
               missingArtists.set(ra.id, {
                 artist: ra,
                 relatedTo: artist.name,
@@ -1303,6 +1313,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             }
           }
         }
+        console.log('Blindspots filter:', { totalRelated, skippedTop, skippedActive, remaining: missingArtists.size });
 
         // Sort by popularity (most popular = biggest blindspot)
         const blindspotArtists = Array.from(missingArtists.values())
@@ -1384,7 +1395,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             </div>`).join('');
         }
 
-        if (!html) html = '<p>Couldn\'t find any blindspots — you\'re pretty thorough!</p>';
+        if (!html) html = `<p>Couldn't find any blindspots — you're pretty thorough!</p><p style="color:#666;font-size:11px;margin-top:8px;">Debug: ${topItems.length} top artists, ${totalRelated} related checked, ${skippedTop} were your top artists, ${skippedActive} already active (count>2), ${missingArtists.size} candidates found, ${missingAlbums.length} missing albums, ${missingTracks.length} missing tracks</p>`;
         result.innerHTML = html;
 
       } catch (err) {
@@ -1489,7 +1500,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         }
 
         if (allTracks.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No new tracks found. Try again later!</p>';
+          result.innerHTML = `<p style="color:#ff4444;">No new tracks found.</p><p style="color:#666;font-size:11px;margin-top:8px;">Debug: ${seedArtists.length} seed artists, ${relatedMap.size} related artists found, ${myTrackIds.size} tracks already known</p>`;
           return;
         }
 
