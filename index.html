@@ -1403,20 +1403,20 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           return;
         }
 
-        // Build recommendations query with proper URL encoding
-        let params = new URLSearchParams();
-        params.append('limit', 100);
+        // Build recommendations URL with seeds
+        let url = `/recommendations?limit=100`;
+        if (artistIds.length > 0) url += `&seed_artists=${artistIds.join(',')}`;
+        if (trackIds.length > 0) url += `&seed_tracks=${trackIds.join(',')}`;
 
-        if (artistIds.length > 0) {
-          params.append('seed_artists', artistIds.join(','));
-        }
-        if (trackIds.length > 0) {
-          params.append('seed_tracks', trackIds.join(','));
-        }
-
-        // Fetch recommendations (single request for better results)
-        const recs = await spotifyApi(`/recommendations?${params.toString()}`);
+        console.log('Calling recommendations API:', url);
+        const recs = await spotifyApi(url);
+        console.log('Recommendations response:', recs);
         const allTracks = recs?.tracks || [];
+
+        if (allTracks.length === 0) {
+          result.innerHTML = '<p style="color:#ff4444;">No recommendations found. Try enabling more data access.</p>';
+          return;
+        }
 
         // Remove duplicates and build HTML
         const seen = new Set();
