@@ -49,7 +49,7 @@ node update-models.js --dry-run # Preview changes without updating
 Currently supported models include:
 - **Claude 4.6**, 4.5, Opus 4.6, Sonnet 4.6, **Haiku 4.5**
 - **GPT-4o**, GPT-4, **GPT-4o Mini**, GPT-3.5 Turbo, **o1 family**
-- **Gemini 2.0/2.5/1.5** (flash/pro variants) — use `update-models.js` to check latest
+- **Gemini 3 Flash/Pro** (preview), Gemini 3.1 (preview), Gemini 2.5/2.0
 
 ## TODO
 
