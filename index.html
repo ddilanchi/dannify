@@ -1403,18 +1403,25 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           return;
         }
 
-        // Build recommendations URL with seeds
-        let url = `/recommendations?limit=100`;
-        if (artistIds.length > 0) url += `&seed_artists=${artistIds.join(',')}`;
-        if (trackIds.length > 0) url += `&seed_tracks=${trackIds.join(',')}`;
+        // Build recommendations URL - use just first seed for now
+        let url = `/recommendations?limit=100&seed_artists=${artistIds[0] || ''}`;
+        if (trackIds.length > 0) {
+          url += `&seed_tracks=${trackIds[0]}`;
+        }
 
         console.log('Calling recommendations API:', url);
         const recs = await spotifyApi(url);
         console.log('Recommendations response:', recs);
+
+        if (!recs || recs.error) {
+          result.innerHTML = `<p style="color:#ff4444;">API Error: ${recs?.error?.message || 'Unknown error'}</p>`;
+          return;
+        }
+
         const allTracks = recs?.tracks || [];
 
         if (allTracks.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No recommendations found. Try enabling more data access.</p>';
+          result.innerHTML = '<p style="color:#ff4444;">No recommendations found.</p>';
           return;
         }
 
