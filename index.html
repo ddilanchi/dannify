@@ -1403,21 +1403,31 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           return;
         }
 
-        // Build recommendations URL - use just first seed for now
-        let url = `/recommendations?limit=100&seed_artists=${artistIds[0] || ''}`;
+        // Fetch recommendations using fetch directly with proper encoding
+        const params = new URLSearchParams({
+          limit: '100',
+          seed_artists: artistIds[0] || '',
+        });
         if (trackIds.length > 0) {
-          url += `&seed_tracks=${trackIds[0]}`;
+          params.set('seed_tracks', trackIds[0]);
         }
 
-        console.log('Calling recommendations API:', url);
-        const recs = await spotifyApi(url);
-        console.log('Recommendations response:', recs);
+        const url = `https://api.spotify.com/v1/recommendations?${params.toString()}`;
+        console.log('Fetching recommendations:', url);
 
-        if (!recs || recs.error) {
-          result.innerHTML = `<p style="color:#ff4444;">API Error: ${recs?.error?.message || 'Unknown error'}</p>`;
+        const res = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        console.log('Response status:', res.status);
+
+        if (!res.ok) {
+          result.innerHTML = `<p style="color:#ff4444;">API Error: ${res.status} ${res.statusText}</p>`;
           return;
         }
 
+        const recs = await res.json();
+        console.log('Recommendations:', recs);
         const allTracks = recs?.tracks || [];
 
         if (allTracks.length === 0) {
