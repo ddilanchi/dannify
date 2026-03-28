@@ -495,7 +495,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.3.0';
+    const VERSION = '1.3.1';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -1242,12 +1242,12 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     }
 
     // ---- Blindspots ----
-    // Uses artist album catalogs + genre-based artist search.
+    // Finds music you HAVEN'T heard by discovering adjacent genres and deep-cut artists.
     // Avoids: /top-tracks (removed Feb 2026), /related-artists, /recommendations (deprecated Nov 2024)
     async function findBlindspots() {
       const result = document.getElementById('blindspot-result');
       result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your library...</div>';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
 
       try {
         const [topArtists, savedTracks, topTracks] = await Promise.all([
@@ -1256,89 +1256,119 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
         ]);
 
-        const myTrackIds = new Set();
-        const myAlbumIds = new Set();
-        const myAlbumNames = new Set();
-        function norm(name) { return (name || '').toLowerCase().replace(/\s*[\(\[].*?[\)\]]\s*/g, '').replace(/[^a-z0-9]/g, '').trim(); }
-        function addAlbum(a) { if (a?.id) myAlbumIds.add(a.id); if (a?.name) myAlbumNames.add(norm(a.name)); }
-
-        (savedTracks?.items || []).forEach(i => { myTrackIds.add(i.track.id); addAlbum(i.track.album); });
-        (topTracks?.items || []).forEach(t => { myTrackIds.add(t.id); addAlbum(t.album); });
-
         const topItems = topArtists?.items || [];
         if (topItems.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">No top artists found. Listen to more music first!</p>';
           return;
         }
 
-        result.innerHTML = `<div class="typing"><div class="spinner"></div>Scanning albums from your ${topItems.length} top artists...</div>`;
+        // Build a thorough set of ALL artists user already knows
+        const knownArtistNames = new Set();
+        const knownArtistIds = new Set();
+        topItems.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); });
+        (savedTracks?.items || []).forEach(i => i.track.artists.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); }));
+        (topTracks?.items || []).forEach(t => t.artists.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); }));
 
-        // For each top artist, find albums user hasn't explored
-        // Uses /artists/{id}/albums (still works) — NOT /top-tracks (removed)
-        const missingAlbums = [];
+        // Step 1: Collect ALL genres from top artists
+        const allGenres = new Set();
+        topItems.forEach(a => (a.genres || []).forEach(g => allGenres.add(g)));
 
-        for (const artist of topItems.slice(0, 15)) {
-          const albums = await spotifyApi(`/artists/${artist.id}/albums?include_groups=album%2Csingle&limit=10&market=US`);
+        // Step 2: Find ADJACENT genres — genres that share words with user's genres but aren't exact matches
+        // e.g. if user likes "alternative metal", adjacent could be "alternative rock", "progressive metal"
+        const userGenreWords = new Set();
+        allGenres.forEach(g => g.split(/[\s-]+/).forEach(w => { if (w.length > 2) userGenreWords.add(w); }));
 
-          if (albums?.items) {
-            for (const album of albums.items) {
-              if (!myAlbumIds.has(album.id) && !myAlbumNames.has(norm(album.name))) {
-                missingAlbums.push({ album, artistName: artist.name });
-              }
-            }
-          }
+        // Build adjacent genre candidates from genre words
+        const adjacentGenres = [];
+        const genreWordList = Array.from(userGenreWords);
+        // Mix genre words together to find new combinations
+        for (let i = 0; i < Math.min(genreWordList.length, 8); i++) {
+          adjacentGenres.push(genreWordList[i]);
         }
 
-        // Find new artists via genre search
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching for artists in your genres...</div>';
-
-        const genreCount = new Map();
-        topItems.forEach(a => (a.genres || []).forEach(g => genreCount.set(g, (genreCount.get(g) || 0) + 1)));
-        const topGenres = Array.from(genreCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(e => e[0]);
-
-        const knownArtistIds = new Set(topItems.map(a => a.id));
-        (savedTracks?.items || []).forEach(i => i.track.artists.forEach(a => knownArtistIds.add(a.id)));
-        (topTracks?.items || []).forEach(t => t.artists.forEach(a => knownArtistIds.add(a.id)));
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Exploring adjacent genres and deep cuts...</div>';
 
         const discoveredArtists = [];
-        for (const genre of topGenres) {
-          // Dev mode limit is 10, use proper encoding (no quotes around genre value)
-          const searchResult = await spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=artist&limit=10&market=US`);
-          if (!searchResult?.artists?.items) continue;
-          for (const a of searchResult.artists.items) {
-            if (!knownArtistIds.has(a.id) && a.popularity >= 20) {
+
+        // Strategy 1: Search with genre words at HIGH offsets to skip the obvious results
+        const offset = Math.floor(Math.random() * 200) + 100;
+        const wordSearches = adjacentGenres.slice(0, 8).map(word =>
+          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}&type=artist&limit=10&offset=${Math.min(offset, 990)}&market=US`)
+        );
+        const wordResults = await Promise.all(wordSearches);
+
+        for (let i = 0; i < wordResults.length; i++) {
+          for (const a of (wordResults[i]?.artists?.items || [])) {
+            if (!knownArtistIds.has(a.id) && !knownArtistNames.has(a.name.toLowerCase()) && a.popularity >= 15) {
               knownArtistIds.add(a.id);
-              discoveredArtists.push({ artist: a, genre });
+              discoveredArtists.push({ artist: a, via: adjacentGenres[i] });
             }
           }
         }
-        discoveredArtists.sort((a, b) => b.artist.popularity - a.artist.popularity);
+
+        // Strategy 2: Search with "tag:hipster" for low-popularity gems in user's genre words
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding hidden gems...</div>';
+        const hipsterSearches = adjacentGenres.slice(0, 6).map(word =>
+          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}&type=album&limit=10&market=US`)
+        );
+        const hipsterResults = await Promise.all(hipsterSearches);
+
+        const discoveredAlbums = [];
+        for (let i = 0; i < hipsterResults.length; i++) {
+          for (const album of (hipsterResults[i]?.albums?.items || [])) {
+            const artistName = album.artists?.[0]?.name || '';
+            if (!knownArtistNames.has(artistName.toLowerCase()) && !knownArtistIds.has(album.artists?.[0]?.id)) {
+              discoveredAlbums.push({ album, via: adjacentGenres[i] });
+            }
+          }
+        }
+
+        // Strategy 3: Search for new releases in user's genres from the past year
+        const freshSearches = adjacentGenres.slice(0, 4).map(word =>
+          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}+year:2025-2026&type=artist&limit=10&market=US`)
+        );
+        const freshResults = await Promise.all(freshSearches);
+
+        for (let i = 0; i < freshResults.length; i++) {
+          for (const a of (freshResults[i]?.artists?.items || [])) {
+            if (!knownArtistIds.has(a.id) && !knownArtistNames.has(a.name.toLowerCase()) && a.popularity >= 10) {
+              knownArtistIds.add(a.id);
+              discoveredArtists.push({ artist: a, via: adjacentGenres[i] + ' (new)' });
+            }
+          }
+        }
+
+        // Shuffle so it's not sorted by strategy
+        for (let i = discoveredArtists.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [discoveredArtists[i], discoveredArtists[j]] = [discoveredArtists[j], discoveredArtists[i]];
+        }
 
         // Build results
         let html = '';
 
         if (discoveredArtists.length) {
-          html += '<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Artists in your genres you haven\'t explored</p>';
-          html += '<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Based on genres you listen to most</p>';
-          html += discoveredArtists.slice(0, 15).map(d => `
+          html += `<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Artists you probably haven't heard</p>`;
+          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Found via adjacent genres — filtered out ${knownArtistNames.size} artists you already know</p>`;
+          html += discoveredArtists.slice(0, 20).map(d => `
             <div class="dupe-item">
               <img src="${d.artist.images?.[2]?.url || d.artist.images?.[0]?.url || ''}" alt="">
               <div class="dupe-info">
                 <div class="dupe-name">${esc(d.artist.name)}</div>
-                <div class="dupe-detail">${esc(d.genre)} &middot; popularity ${d.artist.popularity}/100 &middot; ${(d.artist.genres || []).slice(0,2).join(', ')}</div>
+                <div class="dupe-detail">via ${esc(d.via)} &middot; popularity ${d.artist.popularity}/100 &middot; ${(d.artist.genres || []).slice(0,3).join(', ') || 'unknown genre'}</div>
               </div>
             </div>`).join('');
         }
 
-        if (missingAlbums.length) {
-          html += '<p style="font-weight:700; font-size:15px; margin-top:16px; margin-bottom:8px;">Albums you haven\'t explored</p>';
-          html += '<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">From your favorite artists</p>';
-          html += missingAlbums.slice(0, 15).map(b => `
+        if (discoveredAlbums.length) {
+          html += `<p style="font-weight:700; font-size:15px; margin-top:16px; margin-bottom:8px;">Albums to explore</p>`;
+          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">From artists outside your library</p>`;
+          html += discoveredAlbums.slice(0, 10).map(d => `
             <div class="dupe-item">
-              <img src="${b.album.images?.[2]?.url || b.album.images?.[0]?.url || ''}" alt="">
+              <img src="${d.album.images?.[2]?.url || d.album.images?.[0]?.url || ''}" alt="">
               <div class="dupe-info">
-                <div class="dupe-name">${esc(b.album.name)}</div>
-                <div class="dupe-detail">${esc(b.artistName)} &middot; ${b.album.release_date?.substring(0,4) || ''} &middot; ${b.album.album_type || ''}</div>
+                <div class="dupe-name">${esc(d.album.name)}</div>
+                <div class="dupe-detail">${esc(d.album.artists?.map(a => a.name).join(', ') || '')} &middot; ${d.album.release_date?.substring(0,4) || ''} &middot; via ${esc(d.via)}</div>
               </div>
             </div>`).join('');
         }
@@ -1404,11 +1434,9 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
         result.innerHTML = `<div class="typing"><div class="spinner"></div>Searching ${topGenres.length} genres for new music...</div>`;
 
-        // Strategy 1: Search for tracks by genre (main engine)
-        // Dev mode limit is 10 per request, so we search many genres + use offset for variety
-        const randomOffset = Math.floor(Math.random() * 50);
+        // Strategy 1: Search tracks by genre at offset 0 (most reliable)
         const genreSearches = topGenres.map(genre =>
-          spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=track&limit=10&offset=${randomOffset}&market=US`)
+          spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=track&limit=10&market=US`)
         );
         const genreResults = await Promise.all(genreSearches);
 
@@ -1423,26 +1451,25 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           }
         }
 
-        // Strategy 2: Search with year filter for fresh music in user's genres
+        // Strategy 2: Search with year filter for fresh music
         if (allTracks.length < count) {
-          result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding recent releases in your genres...</div>';
-          const yearSearches = topGenres.slice(0, 6).map(genre =>
+          result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding recent releases...</div>';
+          const yearSearches = topGenres.slice(0, 8).map(genre =>
             spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}+year:2025-2026&type=track&limit=10&market=US`)
           );
           const yearResults = await Promise.all(yearSearches);
           for (let i = 0; i < yearResults.length; i++) {
-            const tracks = yearResults[i]?.tracks?.items || [];
-            for (const t of tracks) {
+            for (const t of (yearResults[i]?.tracks?.items || [])) {
               if (allTracks.length >= count) break;
               addTrack(t, topGenres[i] + ' (new)');
             }
           }
         }
 
-        // Strategy 3: Search by genre + different offsets for more variety
+        // Strategy 3: Search at small random offset for variety on each run
         if (allTracks.length < count) {
-          const offset2 = Math.floor(Math.random() * 100) + 50;
-          const moreSearches = topGenres.slice(0, 8).map(genre =>
+          const offset2 = Math.floor(Math.random() * 30) + 10;
+          const moreSearches = topGenres.slice(0, 10).map(genre =>
             spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=track&limit=10&offset=${offset2}&market=US`)
           );
           const moreResults = await Promise.all(moreSearches);
