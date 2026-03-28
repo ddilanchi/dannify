@@ -495,7 +495,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.4.0';
+    const VERSION = '1.5.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -1246,17 +1246,21 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     }
 
     // ---- Blindspots ----
-    // Finds music you HAVEN'T heard by discovering adjacent genres and deep-cut artists.
-    // Avoids: /top-tracks (removed Feb 2026), /related-artists, /recommendations (deprecated Nov 2024)
+    // LLM-powered: sends taste profile to AI, gets artist suggestions, searches Spotify
     async function findBlindspots() {
       const result = document.getElementById('blindspot-result');
       result.style.display = 'block';
       result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
 
       try {
-        const [topArtists, savedTracks, topTracks] = await Promise.all([
+        const apiKey = localStorage.getItem('llm_api_key');
+        if (!apiKey) {
+          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+          return;
+        }
+
+        const [topArtists, topTracks] = await Promise.all([
           spotifyApi('/me/top/artists?limit=20&time_range=long_term'),
-          spotifyApi('/me/tracks?limit=50'),
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
         ]);
 
@@ -1266,246 +1270,212 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
           return;
         }
 
-        // Build a thorough set of ALL artists user already knows
+        // Build known artist set for filtering
         const knownArtistNames = new Set();
-        const knownArtistIds = new Set();
-        topItems.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); });
-        (savedTracks?.items || []).forEach(i => i.track.artists.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); }));
-        (topTracks?.items || []).forEach(t => t.artists.forEach(a => { knownArtistIds.add(a.id); knownArtistNames.add(a.name.toLowerCase()); }));
+        topItems.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        (topTracks?.items || []).forEach(t => t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())));
 
-        // Step 1: Collect ALL genres from top artists
-        const allGenres = new Set();
-        topItems.forEach(a => (a.genres || []).forEach(g => allGenres.add(g)));
+        // Build taste profile for LLM
+        const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,3).join(', ')})`).join(', ');
+        const trackList = (topTracks?.items || []).slice(0, 15).map(t => `${t.name} by ${t.artists[0]?.name}`).join(', ');
 
-        // Step 2: Find ADJACENT genres — genres that share words with user's genres but aren't exact matches
-        // e.g. if user likes "alternative metal", adjacent could be "alternative rock", "progressive metal"
-        const userGenreWords = new Set();
-        allGenres.forEach(g => g.split(/[\s-]+/).forEach(w => { if (w.length > 2) userGenreWords.add(w); }));
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Asking AI for recommendations...</div>';
 
-        // Build adjacent genre candidates from genre words
-        const adjacentGenres = [];
-        const genreWordList = Array.from(userGenreWords);
-        // Mix genre words together to find new combinations
-        for (let i = 0; i < Math.min(genreWordList.length, 8); i++) {
-          adjacentGenres.push(genreWordList[i]);
+        // Ask LLM for artist recommendations
+        const llmResponse = await callLLM([{
+          role: 'user',
+          content: `I need music recommendations. Here are my top artists: ${artistList}
+
+And some of my top tracks: ${trackList}
+
+Suggest exactly 15 artists I probably HAVEN'T heard of. They should be:
+- NOT any of the artists listed above or obvious/mainstream artists in those genres
+- Artists who make music adjacent to my taste but from unexpected angles
+- Mix of underground, international, different eras, and cross-genre artists
+- Artists that actually exist on Spotify
+
+Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist One", "Artist Two", "Artist Three"]`
+        }]);
+
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for suggestions...</div>';
+
+        // Parse LLM response
+        let suggestedArtists = [];
+        try {
+          const jsonMatch = llmResponse.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) suggestedArtists = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
+          return;
         }
 
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Exploring adjacent genres and deep cuts...</div>';
+        // Search Spotify for each suggested artist
+        const foundArtists = [];
+        const foundTracks = [];
 
-        const discoveredArtists = [];
+        for (const name of suggestedArtists.slice(0, 15)) {
+          if (knownArtistNames.has(name.toLowerCase())) continue;
 
-        // Strategy 1: Search with genre words at HIGH offsets to skip the obvious results
-        const offset = Math.floor(Math.random() * 200) + 100;
-        const wordSearches = adjacentGenres.slice(0, 8).map(word =>
-          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}&type=artist&limit=10&offset=${Math.min(offset, 990)}&market=US`)
-        );
-        const wordResults = await Promise.all(wordSearches);
+          const [artistResult, trackResult] = await Promise.all([
+            spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=artist&limit=1&market=US`),
+            spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=3&market=US`),
+          ]);
 
-        for (let i = 0; i < wordResults.length; i++) {
-          for (const a of (wordResults[i]?.artists?.items || [])) {
-            if (!knownArtistIds.has(a.id) && !knownArtistNames.has(a.name.toLowerCase())) {
-              knownArtistIds.add(a.id);
-              discoveredArtists.push({ artist: a, via: adjacentGenres[i] });
+          const artist = artistResult?.artists?.items?.[0];
+          if (artist && !knownArtistNames.has(artist.name.toLowerCase())) {
+            foundArtists.push({ artist, suggestedName: name });
+          }
+
+          const tracks = trackResult?.tracks?.items || [];
+          for (const t of tracks) {
+            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase())) {
+              foundTracks.push(t);
             }
           }
-        }
-
-        // Strategy 2: Search with "tag:hipster" for low-popularity gems in user's genre words
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding hidden gems...</div>';
-        const hipsterSearches = adjacentGenres.slice(0, 6).map(word =>
-          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}&type=album&limit=10&market=US`)
-        );
-        const hipsterResults = await Promise.all(hipsterSearches);
-
-        const discoveredAlbums = [];
-        for (let i = 0; i < hipsterResults.length; i++) {
-          for (const album of (hipsterResults[i]?.albums?.items || [])) {
-            const artistName = album.artists?.[0]?.name || '';
-            if (!knownArtistNames.has(artistName.toLowerCase()) && !knownArtistIds.has(album.artists?.[0]?.id)) {
-              discoveredAlbums.push({ album, via: adjacentGenres[i] });
-            }
-          }
-        }
-
-        // Strategy 3: Search for new releases in user's genres from the past year
-        const freshSearches = adjacentGenres.slice(0, 4).map(word =>
-          spotifyApi(`/search?q=genre:${encodeURIComponent(word)}+year:2025-2026&type=artist&limit=10&market=US`)
-        );
-        const freshResults = await Promise.all(freshSearches);
-
-        for (let i = 0; i < freshResults.length; i++) {
-          for (const a of (freshResults[i]?.artists?.items || [])) {
-            if (!knownArtistIds.has(a.id) && !knownArtistNames.has(a.name.toLowerCase())) {
-              knownArtistIds.add(a.id);
-              discoveredArtists.push({ artist: a, via: adjacentGenres[i] + ' (new)' });
-            }
-          }
-        }
-
-        // Shuffle so it's not sorted by strategy
-        for (let i = discoveredArtists.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [discoveredArtists[i], discoveredArtists[j]] = [discoveredArtists[j], discoveredArtists[i]];
         }
 
         // Build results
         let html = '';
 
-        if (discoveredArtists.length) {
+        if (foundArtists.length) {
           html += `<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Artists you probably haven't heard</p>`;
-          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Found via adjacent genres — filtered out ${knownArtistNames.size} artists you already know</p>`;
-          html += discoveredArtists.slice(0, 20).map(d => `
+          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">AI-curated based on your taste — filtered out ${knownArtistNames.size} artists you already know</p>`;
+          html += foundArtists.map(d => `
             <div class="dupe-item">
               <img src="${d.artist.images?.[2]?.url || d.artist.images?.[0]?.url || ''}" alt="">
               <div class="dupe-info">
                 <div class="dupe-name">${esc(d.artist.name)}</div>
-                <div class="dupe-detail">via ${esc(d.via)} &middot; ${(d.artist.genres || []).slice(0,3).join(', ') || 'unknown genre'}</div>
+                <div class="dupe-detail">${(d.artist.genres || []).slice(0,3).join(', ') || 'unknown genre'}</div>
               </div>
             </div>`).join('');
         }
 
-        if (discoveredAlbums.length) {
-          html += `<p style="font-weight:700; font-size:15px; margin-top:16px; margin-bottom:8px;">Albums to explore</p>`;
-          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">From artists outside your library</p>`;
-          html += discoveredAlbums.slice(0, 10).map(d => `
-            <div class="dupe-item">
-              <img src="${d.album.images?.[2]?.url || d.album.images?.[0]?.url || ''}" alt="">
+        if (foundTracks.length) {
+          html += `<p style="font-weight:700; font-size:15px; margin-top:16px; margin-bottom:8px;">Tracks to try</p>`;
+          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Top tracks from suggested artists &middot; click + to stage</p>`;
+          html += foundTracks.slice(0, 15).map(t => {
+            const uri = `spotify:track:${t.id}`;
+            const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+            const isStaged = stagedTracks.some(s => s.uri === uri);
+            return `
+            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${uri}" data-name="${esc(t.name)}" data-artist="${esc(t.artists[0]?.name || '')}" data-img="${img}" onclick="stageFromSuggestion(this)">
+              <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
               <div class="dupe-info">
-                <div class="dupe-name">${esc(d.album.name)}</div>
-                <div class="dupe-detail">${esc(d.album.artists?.map(a => a.name).join(', ') || '')} &middot; ${d.album.release_date?.substring(0,4) || ''} &middot; via ${esc(d.via)}</div>
+                <div class="dupe-name">${esc(t.name)}</div>
+                <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')}</div>
               </div>
-            </div>`).join('');
+              <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
+            </div>`;
+          }).join('');
         }
 
-        if (!html) html = '<p>Couldn\'t find any blindspots — you\'re pretty thorough!</p>';
+        if (!html) html = '<p>No results found. Try again for different suggestions.</p>';
         result.innerHTML = html;
 
       } catch (err) {
-        result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        if (err.message === 'NO_KEY') {
+          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+        } else {
+          result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        }
       }
     }
 
     // ---- Discover Infinitely ----
-    // Uses genre search + artist album exploration. No deprecated endpoints.
+    // LLM-powered: AI suggests tracks based on taste, Spotify searches verify them
     async function discoverInfinitely(count = 50) {
       const result = document.getElementById('discover-result');
       result.style.display = 'block';
       result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
 
       try {
-        // Get user's top artists and tracks across time ranges
-        const [topShort, topMed, topLong, topTracks, saved] = await Promise.all([
-          spotifyApi('/me/top/artists?limit=10&time_range=short_term'),
-          spotifyApi('/me/top/artists?limit=10&time_range=medium_term'),
-          spotifyApi('/me/top/artists?limit=10&time_range=long_term'),
+        const apiKey = localStorage.getItem('llm_api_key');
+        if (!apiKey) {
+          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+          return;
+        }
+
+        const [topArtists, topTracks, saved] = await Promise.all([
+          spotifyApi('/me/top/artists?limit=20&time_range=medium_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
           spotifyApi('/me/tracks?limit=50'),
         ]);
 
-        // Collect known tracks to filter out
-        const myTrackIds = new Set();
-        (topTracks?.items || []).forEach(t => myTrackIds.add(t.id));
-        (saved?.items || []).forEach(i => myTrackIds.add(i.track.id));
-
-        // Merge top artists across time ranges
-        const seenArtistIds = new Set();
-        const seedArtists = [];
-        for (const list of [topShort?.items, topMed?.items, topLong?.items]) {
-          for (const a of (list || [])) {
-            if (!seenArtistIds.has(a.id)) { seenArtistIds.add(a.id); seedArtists.push(a); }
-          }
-        }
-
-        if (seedArtists.length === 0) {
+        const topItems = topArtists?.items || [];
+        if (topItems.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">Not enough listening data yet!</p>';
           return;
         }
 
-        // Collect genres from user's top artists
-        const genreCount = new Map();
-        seedArtists.forEach(a => (a.genres || []).forEach(g => genreCount.set(g, (genreCount.get(g) || 0) + 1)));
-        const topGenres = Array.from(genreCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 12).map(e => e[0]);
+        // Collect known tracks and artists to filter out
+        const myTrackNames = new Set();
+        const knownArtistNames = new Set();
+        (topTracks?.items || []).forEach(t => { myTrackNames.add((t.name + ' ' + t.artists[0]?.name).toLowerCase()); t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())); });
+        (saved?.items || []).forEach(i => { myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase()); i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())); });
 
-        const allTracks = [];
-        const seenTrackIds = new Set();
+        // Build taste profile
+        const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,2).join(', ')})`).join(', ');
+        const trackList = (topTracks?.items || []).slice(0, 20).map(t => `"${t.name}" by ${t.artists[0]?.name}`).join(', ');
 
-        function addTrack(track, via) {
-          if (!track?.id || seenTrackIds.has(track.id) || myTrackIds.has(track.id)) return false;
-          seenTrackIds.add(track.id);
-          allTracks.push({ ...track, _via: via });
-          return true;
-        }
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>AI is building your discovery playlist...</div>';
 
-        result.innerHTML = `<div class="typing"><div class="spinner"></div>Searching ${topGenres.length} genres for new music...</div>`;
+        // Ask LLM for track recommendations
+        const llmResponse = await callLLM([{
+          role: 'user',
+          content: `I want to discover new music. Here's my taste:
 
-        // Strategy 1: Search tracks by genre at offset 0 (most reliable)
-        const genreSearches = topGenres.map(genre =>
-          spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=track&limit=10&market=US`)
-        );
-        const genreResults = await Promise.all(genreSearches);
+Top artists: ${artistList}
+Recent tracks: ${trackList}
 
-        for (let i = 0; i < genreResults.length; i++) {
-          const tracks = genreResults[i]?.tracks?.items || [];
-          for (let j = tracks.length - 1; j > 0; j--) {
-            const k = Math.floor(Math.random() * (j + 1));
-            [tracks[j], tracks[k]] = [tracks[k], tracks[j]];
-          }
-          for (const t of tracks) {
-            addTrack(t, topGenres[i]);
-          }
-        }
+Suggest exactly 30 specific songs (track + artist) I should listen to. Rules:
+- Do NOT suggest songs by any of my top artists listed above
+- Mix of: deep cuts from adjacent artists, different decades, international music, cross-genre surprises
+- Every suggestion must be a real song that exists on Spotify
+- Prioritize songs I'm unlikely to have heard
+- Be creative and unexpected — don't just suggest the most popular songs in similar genres
 
-        // Strategy 2: Search with year filter for fresh music
-        if (allTracks.length < count) {
-          result.innerHTML = '<div class="typing"><div class="spinner"></div>Finding recent releases...</div>';
-          const yearSearches = topGenres.slice(0, 8).map(genre =>
-            spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}+year:2025-2026&type=track&limit=10&market=US`)
-          );
-          const yearResults = await Promise.all(yearSearches);
-          for (let i = 0; i < yearResults.length; i++) {
-            for (const t of (yearResults[i]?.tracks?.items || [])) {
-              if (allTracks.length >= count) break;
-              addTrack(t, topGenres[i] + ' (new)');
-            }
-          }
-        }
+Respond with ONLY a JSON array of objects, nothing else. Example:
+[{"track": "Song Name", "artist": "Artist Name"}, ...]`
+        }]);
 
-        // Strategy 3: Search at small random offset for variety on each run
-        if (allTracks.length < count) {
-          const offset2 = Math.floor(Math.random() * 30) + 10;
-          const moreSearches = topGenres.slice(0, 10).map(genre =>
-            spotifyApi(`/search?q=genre:${encodeURIComponent(genre)}&type=track&limit=10&offset=${offset2}&market=US`)
-          );
-          const moreResults = await Promise.all(moreSearches);
-          for (let i = 0; i < moreResults.length; i++) {
-            const tracks = moreResults[i]?.tracks?.items || [];
-            for (let j = tracks.length - 1; j > 0; j--) {
-              const k = Math.floor(Math.random() * (j + 1));
-              [tracks[j], tracks[k]] = [tracks[k], tracks[j]];
-            }
-            for (const t of tracks) {
-              if (allTracks.length >= count) break;
-              addTrack(t, topGenres[i]);
-            }
-          }
-        }
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for tracks...</div>';
 
-        // Shuffle final list so genres are intermixed
-        for (let i = allTracks.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [allTracks[i], allTracks[j]] = [allTracks[j], allTracks[i]];
-        }
-
-        const finalTracks = allTracks.slice(0, count);
-
-        if (finalTracks.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No new tracks found. Try again later!</p>';
+        // Parse LLM response
+        let suggestions = [];
+        try {
+          const jsonMatch = llmResponse.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) suggestions = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
           return;
         }
 
-        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Discovered ${finalTracks.length} tracks</p>`;
-        html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:12px;">From ${topGenres.slice(0,5).join(', ')} and more &middot; click + to stage</p>`;
-        html += finalTracks.map(t => {
+        // Search Spotify for each suggestion
+        const allTracks = [];
+        const seenIds = new Set();
+
+        for (const s of suggestions.slice(0, 30)) {
+          if (!s.track || !s.artist) continue;
+          if (knownArtistNames.has(s.artist.toLowerCase())) continue;
+
+          const q = `track:${encodeURIComponent(s.track)}+artist:${encodeURIComponent(s.artist)}`;
+          const data = await spotifyApi(`/search?q=${q}&type=track&limit=1&market=US`);
+          const track = data?.tracks?.items?.[0];
+
+          if (track && !seenIds.has(track.id) && !myTrackNames.has((track.name + ' ' + track.artists[0]?.name).toLowerCase())) {
+            seenIds.add(track.id);
+            allTracks.push({ ...track, _via: 'AI pick' });
+          }
+        }
+
+        if (allTracks.length === 0) {
+          result.innerHTML = '<p style="color:#ff4444;">No tracks found on Spotify. Try again for different suggestions.</p>';
+          return;
+        }
+
+        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Discovered ${allTracks.length} tracks</p>`;
+        html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:12px;">AI-curated based on your taste &middot; click + to stage</p>`;
+        html += allTracks.map(t => {
           const uri = `spotify:track:${t.id}`;
           const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
           const isStaged = stagedTracks.some(s => s.uri === uri);
@@ -1514,7 +1484,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
             <div class="dupe-info">
               <div class="dupe-name">${esc(t.name)}</div>
-              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')} &middot; <span style="color:#888;">via ${esc(t._via)}</span></div>
+              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')}</div>
             </div>
             <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
           </div>`;
@@ -1522,7 +1492,11 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
         result.innerHTML = html;
       } catch (err) {
-        result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        if (err.message === 'NO_KEY') {
+          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+        } else {
+          result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        }
       }
     }
 
