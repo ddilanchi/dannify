@@ -495,7 +495,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.3.2';
+    const VERSION = '1.4.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -710,15 +710,9 @@
       return tracks;
     }
 
-    // ---- Fetch audio features for track IDs (batches of 100) ----
+    // ---- Fetch audio features (DEPRECATED Nov 2024 — stub returns empty) ----
     async function fetchAudioFeatures(trackIds) {
-      const features = [];
-      for (let i = 0; i < trackIds.length; i += 100) {
-        const batch = trackIds.slice(i, i + 100).join(',');
-        const data = await spotifyApi(`/audio-features?ids=${batch}`);
-        if (data?.audio_features) features.push(...data.audio_features);
-      }
-      return features;
+      return [];
     }
 
     // ---- Fetch user library for LLM context ----
@@ -943,15 +937,16 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       btn.disabled = true; btn.textContent = 'Refreshing...';
       showTyping('Finding similar tracks...');
       try {
-        const uris = suggestions.map(el => el.dataset.uri).filter(Boolean);
-        const seedIds = uris.sort(() => Math.random() - 0.5).slice(0, 5).map(u => u.split(':')[2]).join(',');
-        const data = await spotifyApi(`/recommendations?seed_tracks=${seedIds}&limit=${suggestions.length}`);
+        // /recommendations deprecated — use search by artist name instead
+        const artistNames = [...new Set(suggestions.map(el => el.dataset.artist).filter(Boolean))];
+        const artist = artistNames[Math.floor(Math.random() * artistNames.length)] || '';
+        const data = await spotifyApi(`/search?q=artist:${encodeURIComponent(artist)}&type=track&limit=10&market=US`);
         hideTyping();
-        if (!data?.tracks?.length) { btn.disabled = false; btn.textContent = '\u21BB Refresh all'; toast('No alternatives found'); return; }
+        if (!data?.tracks?.items?.length) { btn.disabled = false; btn.textContent = '\u21BB Refresh all'; toast('No alternatives found'); return; }
         const grid = msg.querySelector('.track-suggestions-grid');
         if (grid) {
-          grid.innerHTML = data.tracks.map(t => {
-            const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
+          grid.innerHTML = data.tracks.items.map(t => {
+            const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images?.[2]?.url || t.album.images?.[0]?.url || '' };
             const isStaged = stagedTracks.some(s => s.uri === track.uri);
             return `<div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)"><img src="${track.img}" alt=""><div class="ts-info"><div class="ts-name">${esc(track.name)}</div><div class="ts-artist">${esc(track.artist)}</div></div><span class="ts-add">${isStaged ? '&#10003;' : '+'}</span></div>`;
           }).join('');
@@ -963,14 +958,23 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     async function loadMoreLikeStaged(btn) {
       if (!stagedTracks.length) { toast('Stage some tracks first'); return; }
       btn.disabled = true; btn.textContent = 'Loading...';
-      showTyping('Getting Spotify recommendations...');
+      showTyping('Finding similar tracks...');
       try {
-        const seeds = stagedTracks.slice(-5).map(t => t.uri.split(':')[2]).join(',');
-        const data = await spotifyApi(`/recommendations?seed_tracks=${seeds}&limit=30`);
-        if (!data?.tracks?.length) { hideTyping(); btn.disabled = false; btn.textContent = 'More like my picks'; toast('No recommendations found'); return; }
+        // /recommendations deprecated — search by staged track artists instead
+        const artistNames = [...new Set(stagedTracks.map(t => t.artist).filter(Boolean))];
+        const allTracks = [];
+        for (const artist of artistNames.slice(0, 3)) {
+          const data = await spotifyApi(`/search?q=artist:${encodeURIComponent(artist)}&type=track&limit=10&market=US`);
+          if (data?.tracks?.items) allTracks.push(...data.tracks.items);
+        }
+        // Deduplicate and filter out already staged
+        const stagedUris = new Set(stagedTracks.map(t => t.uri));
+        const seen = new Set();
+        const unique = allTracks.filter(t => { if (seen.has(t.uri) || stagedUris.has(t.uri)) return false; seen.add(t.uri); return true; });
+        if (!unique.length) { hideTyping(); btn.disabled = false; btn.textContent = 'More like my picks'; toast('No similar tracks found'); return; }
         let html = '<p>Based on your picks:</p><div class="track-suggestions-grid">';
-        html += data.tracks.map(t => {
-          const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images[2]?.url || t.album.images[0]?.url || '' };
+        html += unique.slice(0, 20).map(t => {
+          const track = { name: t.name, artist: t.artists.map(a => a.name).join(', '), uri: t.uri, img: t.album.images?.[2]?.url || t.album.images?.[0]?.url || '' };
           const isStaged = stagedTracks.some(s => s.uri === track.uri);
           return `<div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${track.uri}" data-name="${esc(track.name)}" data-artist="${esc(track.artist)}" data-img="${track.img}" onclick="stageFromSuggestion(this)"><img src="${track.img}" alt=""><div class="ts-info"><div class="ts-name">${esc(track.name)}</div><div class="ts-artist">${esc(track.artist)}</div></div><span class="ts-add">${isStaged ? '&#10003;' : '+'}</span></div>`;
         }).join('');
@@ -1026,7 +1030,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     async function createPlaylist() {
       const name = document.getElementById('new-playlist-name').value.trim();
       if (!name) return;
-      const p = await spotifyApi('/users/' + userId + '/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
+      const p = await spotifyApi('/me/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
       if (p) { document.getElementById('new-playlist-name').value = ''; toast('Created: ' + name); await loadPlaylists(); document.getElementById('playlist-select').value = p.id; }
     }
 
@@ -1204,7 +1208,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
         if (!seen.has(i.track.uri)) { seen.add(i.track.uri); merged.push(i.track.uri); }
       });
 
-      const p = await spotifyApi('/users/' + userId + '/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
+      const p = await spotifyApi('/me/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
       for (let i = 0; i < merged.length; i += 100) {
         await spotifyApi(`/playlists/${p.id}/items`, { method: 'POST', body: JSON.stringify({ uris: merged.slice(i, i + 100) }) });
       }

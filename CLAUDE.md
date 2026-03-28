@@ -1,6 +1,6 @@
 # Dannify Project Status
 
-**Current Version:** 1.3.0
+**Current Version:** 1.4.0
 
 ## What We're Doing
 Spotify playlist builder with LLM-powered features supporting Claude, GPT, and Gemini models.
@@ -27,7 +27,8 @@ Spotify playlist builder with LLM-powered features supporting Claude, GPT, and G
 - [ ] Deploy to GitHub Pages with version tracking
 
 ## Version History
-- **1.3.0** (2026-03-28) — Rebuilt Blindspots + Discover using only working Spotify endpoints. Removed all calls to deprecated /top-tracks, /recommendations, /related-artists. Genre search + album catalogs only. Dev mode compatible (limit=10).
+- **1.4.0** (2026-03-28) — Full API audit: removed ALL deprecated endpoints. Fixed /playlists tracks→items, /recommendations→search, /audio-features→stub, /users/{id}/playlists→/me/playlists. Zero deprecated calls remaining. Blindspots rewritten for adjacent genre discovery.
+- **1.3.0** (2026-03-28) — Rebuilt Blindspots + Discover using only working Spotify endpoints.
 - **1.2.2** (2026-03-25) — Rebuilt Blindspots and Discover Infinitely: Spotify deprecated `/recommendations` and `/related-artists` endpoints in 2024. Now uses genre-based search and catalog exploration instead.
 - **1.2.1** (2026-03-24) — Fixed Discover Infinitely recommendations API
 - **1.2.0** (2026-03-24) — Added Discover Infinitely tool (infinite recommendations), improved Blindspots algorithm
