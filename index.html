@@ -495,7 +495,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.5.0';
+    const VERSION = '1.5.1';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -1043,6 +1043,32 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       toast(`Added ${uris.length} tracks!`);
     }
 
+    // ---- Save tool results as playlist ----
+    async function saveResultsAsPlaylist(containerId, defaultName) {
+      const container = document.getElementById(containerId);
+      const trackEls = container.querySelectorAll('.track-suggestion');
+      const uris = Array.from(trackEls).map(el => el.dataset.uri).filter(Boolean);
+
+      if (!uris.length) { toast('No tracks to save'); return; }
+
+      const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const name = `${defaultName} — ${date}`;
+
+      try {
+        const p = await spotifyApi('/me/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
+        if (!p?.id) { toast('Failed to create playlist'); return; }
+
+        for (let i = 0; i < uris.length; i += 100) {
+          await spotifyApi(`/playlists/${p.id}/items`, { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+        }
+
+        toast(`Saved "${name}" with ${uris.length} tracks!`);
+        await loadPlaylists();
+      } catch (err) {
+        toast('Error: ' + err.message);
+      }
+    }
+
     // ==== TOOLS ====
 
     // ---- Duplicate Finder ----
@@ -1369,6 +1395,10 @@ Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist 
           }).join('');
         }
 
+        if (foundTracks.length) {
+          html += `<div style="margin-top:12px;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('blindspot-result', 'Dannify Blindspots')">Save all as playlist</button></div>`;
+        }
+
         if (!html) html = '<p>No results found. Try again for different suggestions.</p>';
         result.innerHTML = html;
 
@@ -1475,6 +1505,7 @@ Respond with ONLY a JSON array of objects, nothing else. Example:
 
         let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Discovered ${allTracks.length} tracks</p>`;
         html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:12px;">AI-curated based on your taste &middot; click + to stage</p>`;
+        html += `<div style="margin:12px 0;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('discover-result', 'Dannify Discover')">Save all as playlist</button></div>`;
         html += allTracks.map(t => {
           const uri = `spotify:track:${t.id}`;
           const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
