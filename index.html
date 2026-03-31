@@ -400,87 +400,22 @@
       <div class="tab-content" id="tab-tools">
         <div class="tools-panel">
 
-          <!-- Duplicate Finder -->
+          <!-- AI Playlist Editor -->
           <div class="tool-card">
-            <h3>Duplicate Finder</h3>
-            <p class="tool-desc">Find and remove duplicate tracks in a playlist</p>
-            <select id="dupe-playlist"></select>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="findDuplicates()">Scan</button>
-              <button class="btn btn-red btn-sm" id="dupe-remove-btn" style="display:none;" onclick="removeDuplicates()">Remove duplicates</button>
+            <h3>AI Playlist Editor</h3>
+            <p class="tool-desc">Select a playlist and tell AI what to do — remove tracks, add more, reorder, filter by vibe, anything</p>
+            <select id="ai-edit-playlist"></select>
+            <div class="search-input-row" style="margin-top:8px;">
+              <input type="text" id="ai-edit-prompt" placeholder="e.g. &quot;remove anything that isn't chill&quot;, &quot;add 20 more like these&quot;..." autocomplete="off">
+              <button class="btn btn-green btn-sm" onclick="aiEditPlaylist()">Go</button>
             </div>
-            <div class="tool-result" id="dupe-result" style="display:none;"></div>
-          </div>
-
-          <!-- Playlist Analytics -->
-          <div class="tool-card">
-            <h3>Playlist Analytics</h3>
-            <p class="tool-desc">See BPM, energy, mood, danceability, and genre breakdown</p>
-            <select id="analytics-playlist"></select>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="analyzePlaylist()">Analyze</button>
-            </div>
-            <div class="tool-result" id="analytics-result" style="display:none;"></div>
-          </div>
-
-          <!-- Sort Playlist -->
-          <div class="tool-card">
-            <h3>Sort Playlist</h3>
-            <p class="tool-desc">Reorder a playlist by BPM, energy, danceability, or mood</p>
-            <select id="sort-playlist"></select>
-            <div style="display:flex; gap:8px; margin-top:8px;">
-              <select id="sort-attr" style="flex:1; background:#282828; color:#fff; border:none; border-radius:8px; padding:10px; font-size:14px; outline:none;">
-                <option value="tempo">BPM (tempo)</option>
-                <option value="energy">Energy</option>
-                <option value="danceability">Danceability</option>
-                <option value="valence">Mood (valence)</option>
-                <option value="acousticness">Acousticness</option>
-                <option value="instrumentalness">Instrumentalness</option>
-              </select>
-              <select id="sort-dir" style="width:120px; background:#282828; color:#fff; border:none; border-radius:8px; padding:10px; font-size:14px; outline:none;">
-                <option value="asc">Low → High</option>
-                <option value="desc">High → Low</option>
-              </select>
-            </div>
-            <div class="tool-actions" style="margin-top:8px;">
-              <button class="btn btn-green btn-sm" onclick="sortPlaylist()">Sort & Save</button>
-            </div>
-            <div class="tool-result" id="sort-result" style="display:none;"></div>
-          </div>
-
-          <!-- Merge Playlists -->
-          <div class="tool-card">
-            <h3>Merge Playlists</h3>
-            <p class="tool-desc">Combine two playlists into a new one (with dedup)</p>
-            <div class="merge-row">
-              <select id="merge-a"></select>
-              <span style="color:#b3b3b3;">+</span>
-              <select id="merge-b"></select>
-            </div>
-            <div class="search-input-row">
-              <input type="text" id="merge-name" placeholder="New playlist name...">
-            </div>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="mergePlaylists()">Merge</button>
-            </div>
-            <div class="tool-result" id="merge-result" style="display:none;"></div>
-          </div>
-
-          <!-- Cross-Playlist Search -->
-          <div class="tool-card">
-            <h3>Find Song Across Playlists</h3>
-            <p class="tool-desc">Search which of your playlists contain a song</p>
-            <div class="search-input-row">
-              <input type="text" id="xsearch-query" placeholder="Song name or artist...">
-              <button class="btn btn-green btn-sm" onclick="crossPlaylistSearch()">Search</button>
-            </div>
-            <div class="tool-result" id="xsearch-result" style="display:none;"></div>
+            <div class="tool-result" id="ai-edit-result" style="display:none;"></div>
           </div>
 
           <!-- Blindspots -->
           <div class="tool-card">
             <h3>Blindspots</h3>
-            <p class="tool-desc">Artists, albums, and tracks you inexplicably haven't explored — based on what you already love</p>
+            <p class="tool-desc">Tracks from artists you've never explored — based on what you already love</p>
             <div class="tool-actions">
               <button class="btn btn-green btn-sm" onclick="findBlindspots()">Find my blindspots</button>
             </div>
@@ -496,16 +431,6 @@
               <button class="btn btn-outline btn-sm" onclick="discoverInfinitely(100)">100 tracks</button>
             </div>
             <div class="tool-result" id="discover-result" style="display:none;"></div>
-          </div>
-
-          <!-- Export Playlist -->
-          <div class="tool-card">
-            <h3>Export Playlist</h3>
-            <p class="tool-desc">Download a playlist as CSV</p>
-            <select id="export-playlist"></select>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="exportPlaylist()">Export CSV</button>
-            </div>
           </div>
 
         </div>
@@ -568,7 +493,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.7.0';
+    const VERSION = '1.8.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -789,11 +714,6 @@
       return tracks;
     }
 
-    // ---- Fetch audio features (DEPRECATED Nov 2024 — stub returns empty) ----
-    async function fetchAudioFeatures(trackIds) {
-      return [];
-    }
-
     // ---- Fetch user library for LLM context ----
     async function fetchLibrarySummary() {
       const [playlists, topTracks, topArtists, savedTracks] = await Promise.all([
@@ -823,7 +743,7 @@
       }
       const opts = '<option value="">Select playlist...</option>' +
         cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
-      ['dupe-playlist', 'analytics-playlist', 'sort-playlist', 'merge-a', 'merge-b', 'export-playlist'].forEach(id => {
+      ['ai-edit-playlist'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = opts;
       });
@@ -1063,6 +983,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     }
 
     document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+    document.getElementById('ai-edit-prompt').addEventListener('keydown', e => { if (e.key === 'Enter') aiEditPlaylist(); });
 
     // ---- Staging ----
     function stageFromSuggestion(el) {
@@ -1150,204 +1071,201 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
     // ==== TOOLS ====
 
-    // ---- Duplicate Finder ----
-    let dupeData = null;
-    async function findDuplicates() {
-      const id = document.getElementById('dupe-playlist').value;
-      if (!id) { toast('Select a playlist'); return; }
-      const result = document.getElementById('dupe-result');
-      const removeBtn = document.getElementById('dupe-remove-btn');
+    // ---- AI Playlist Editor ----
+    async function aiEditPlaylist() {
+      const playlistId = document.getElementById('ai-edit-playlist').value;
+      const prompt = document.getElementById('ai-edit-prompt').value.trim();
+      if (!playlistId) { toast('Select a playlist'); return; }
+      if (!prompt) { toast('Tell AI what to do'); return; }
+
+      const result = document.getElementById('ai-edit-result');
       result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Scanning...</div>';
-      removeBtn.style.display = 'none';
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Loading playlist...</div>';
 
-      const items = await fetchAllPlaylistTracks(id);
-      const seen = new Map();
-      const dupes = [];
+      try {
+        const apiKey = localStorage.getItem('llm_api_key');
+        if (!apiKey) { result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>'; return; }
 
-      items.forEach((item, idx) => {
-        const key = (item.track.name + ' - ' + item.track.artists.map(a => a.name).join(', ')).toLowerCase();
-        if (seen.has(key)) {
-          dupes.push({ idx, item, original: seen.get(key) });
-        } else {
-          seen.set(key, idx);
+        const pl = cachedPlaylists?.find(p => p.id === playlistId);
+        const plName = pl?.name || 'Unknown';
+        const items = await fetchAllPlaylistTracks(playlistId);
+
+        if (!items.length) { result.innerHTML = '<p style="color:#ff4444;">This playlist is empty.</p>'; return; }
+
+        const trackList = items.map((item, i) => {
+          const t = item.track;
+          return `${i + 1}. "${t.name}" by ${t.artists.map(a => a.name).join(', ')} [${t.album?.name || ''}] (${t.uri})`;
+        }).join('\n');
+
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>AI is analyzing your playlist...</div>';
+
+        const llmResponse = await callLLM([{
+          role: 'user',
+          content: `You are editing a Spotify playlist called "${plName}" with ${items.length} tracks.
+
+Here are all the current tracks:
+${trackList}
+
+The user says: "${prompt}"
+
+You must respond with ONLY a valid JSON object (no other text) with these fields:
+- "action": one of "remove", "add", "reorder", "replace"
+- "explanation": brief description of what you're doing (1-2 sentences)
+
+For "remove": include "remove_uris" — array of spotify URIs to remove
+For "add": include "add_tracks" — array of {"track": "name", "artist": "name"} to search and add
+For "reorder": include "reordered_uris" — the full list of URIs in the new order
+For "replace": include "remove_uris" AND "add_tracks" (for when you need to swap some tracks out and add new ones)
+
+Be decisive. If the user says "remove anything that isn't chill", actually remove the non-chill tracks. If they say "add more like these", suggest 15-25 new tracks. If they say "reorder by energy", reorder all tracks.
+
+IMPORTANT: Only output the JSON object, nothing else.`
+        }]);
+
+        dbg(`AI-EDIT: LLM response length=${llmResponse.length}`);
+
+        let plan;
+        try {
+          const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+          if (jsonMatch) plan = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          dbg(`AI-EDIT: JSON parse failed: ${e.message}`);
+          result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
+          return;
         }
-      });
 
-      if (!dupes.length) {
-        result.innerHTML = '<p style="color:#1db954;">No duplicates found!</p>';
-        return;
+        if (!plan || !plan.action) {
+          result.innerHTML = '<p style="color:#ff4444;">AI returned an invalid plan. Try again.</p>';
+          return;
+        }
+
+        dbg(`AI-EDIT: action=${plan.action}, explanation=${plan.explanation}`);
+
+        // Show the plan and ask for confirmation
+        let previewHtml = `<p style="font-weight:700; margin-bottom:4px;">${esc(plan.explanation)}</p>`;
+        let actionSummary = '';
+
+        if (plan.action === 'remove' || plan.action === 'replace') {
+          const toRemove = plan.remove_uris || [];
+          const removeTracks = toRemove.map(uri => items.find(i => i.track.uri === uri)?.track).filter(Boolean);
+          actionSummary += `<p style="color:#e74c3c; font-size:13px; margin-top:8px;">Removing ${removeTracks.length} tracks:</p>`;
+          actionSummary += removeTracks.map(t =>
+            `<div class="library-track"><img src="${t.album?.images?.[2]?.url || ''}" alt="" style="width:32px;height:32px;"><div class="lt-info"><div class="lt-name" style="color:#e74c3c;">${esc(t.name)}</div><div class="lt-artist">${esc(t.artists.map(a=>a.name).join(', '))}</div></div></div>`
+          ).join('');
+        }
+
+        if (plan.action === 'add' || plan.action === 'replace') {
+          const toAdd = plan.add_tracks || [];
+          actionSummary += `<p style="color:#1db954; font-size:13px; margin-top:8px;">Adding ${toAdd.length} tracks (will search Spotify):</p>`;
+          actionSummary += toAdd.map(t =>
+            `<div class="library-track"><div class="lt-info"><div class="lt-name" style="color:#1db954;">${esc(t.track)}</div><div class="lt-artist">${esc(t.artist)}</div></div></div>`
+          ).join('');
+        }
+
+        if (plan.action === 'reorder') {
+          const reordered = plan.reordered_uris || [];
+          actionSummary += `<p style="color:#b3b3b3; font-size:13px; margin-top:8px;">Reordering ${reordered.length} tracks</p>`;
+          // Show first 10 of new order
+          actionSummary += reordered.slice(0, 10).map((uri, i) => {
+            const t = items.find(item => item.track.uri === uri)?.track;
+            return t ? `<div class="library-track"><span class="lt-num">${i + 1}</span><img src="${t.album?.images?.[2]?.url || ''}" alt="" style="width:32px;height:32px;"><div class="lt-info"><div class="lt-name">${esc(t.name)}</div><div class="lt-artist">${esc(t.artists.map(a=>a.name).join(', '))}</div></div></div>` : '';
+          }).join('');
+          if (reordered.length > 10) actionSummary += `<p style="color:#727272; font-size:12px;">...and ${reordered.length - 10} more</p>`;
+        }
+
+        previewHtml += actionSummary;
+        previewHtml += `<div style="margin-top:12px; display:flex; gap:8px;">
+          <button class="btn btn-green btn-sm" onclick="executeAiEdit('${playlistId}')">Apply Changes</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ai-edit-result').style.display='none'">Cancel</button>
+        </div>`;
+
+        // Store plan for execution
+        window._aiEditPlan = plan;
+        window._aiEditItems = items;
+        result.innerHTML = previewHtml;
+
+      } catch (err) {
+        if (err.message === 'NO_KEY') {
+          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+        } else {
+          result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        }
       }
-
-      dupeData = { playlistId: id, dupes, items };
-      removeBtn.style.display = 'inline-flex';
-      result.innerHTML = `<p><strong>${dupes.length}</strong> duplicate${dupes.length > 1 ? 's' : ''} found:</p>` +
-        dupes.map(d => `<div class="dupe-item"><img src="${d.item.track.album.images?.[2]?.url || ''}" alt=""><div class="dupe-info"><div class="dupe-name">${esc(d.item.track.name)}</div><div class="dupe-detail">${esc(d.item.track.artists.map(a=>a.name).join(', '))}</div></div></div>`).join('');
     }
 
-    async function removeDuplicates() {
-      if (!dupeData) return;
-      const { playlistId, dupes, items } = dupeData;
-      // Remove from end to start so indices don't shift
-      const toRemove = dupes.map(d => ({ uri: d.item.track.uri, positions: [d.idx] })).reverse();
-      // Spotify allows batch removal
-      for (let i = 0; i < toRemove.length; i += 100) {
-        await spotifyApi(`/playlists/${playlistId}/items`, {
-          method: 'DELETE',
-          body: JSON.stringify({ tracks: toRemove.slice(i, i + 100) }),
-        });
+    async function executeAiEdit(playlistId) {
+      const result = document.getElementById('ai-edit-result');
+      const plan = window._aiEditPlan;
+      const items = window._aiEditItems;
+      if (!plan) return;
+
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Applying changes...</div>';
+
+      try {
+        // Remove tracks
+        if (plan.action === 'remove' || plan.action === 'replace') {
+          const toRemove = (plan.remove_uris || []).map(uri => ({ uri }));
+          for (let i = 0; i < toRemove.length; i += 100) {
+            await spotifyApi(`/playlists/${playlistId}/tracks`, {
+              method: 'DELETE',
+              body: JSON.stringify({ tracks: toRemove.slice(i, i + 100) }),
+            });
+          }
+          dbg(`AI-EDIT: removed ${toRemove.length} tracks`);
+        }
+
+        // Add tracks
+        if (plan.action === 'add' || plan.action === 'replace') {
+          const toAdd = plan.add_tracks || [];
+          const addUris = [];
+
+          for (const s of toAdd) {
+            let q = encodeURIComponent(`track:${s.track} artist:${s.artist}`);
+            let data = await spotifyApi(`/search?q=${q}&type=track&limit=3&market=US`);
+            let tracks = data?.tracks?.items || [];
+
+            if (tracks.length === 0) {
+              q = encodeURIComponent(`${s.track} ${s.artist}`);
+              data = await spotifyApi(`/search?q=${q}&type=track&limit=5&market=US`);
+              tracks = data?.tracks?.items || [];
+            }
+
+            const match = tracks.find(t =>
+              t.name.toLowerCase().includes(s.track.toLowerCase().slice(0, 10)) ||
+              t.artists.some(a => a.name.toLowerCase().includes(s.artist.toLowerCase().slice(0, 8)))
+            ) || tracks[0];
+
+            if (match) addUris.push(match.uri);
+          }
+
+          for (let i = 0; i < addUris.length; i += 100) {
+            await spotifyApi(`/playlists/${playlistId}/items`, {
+              method: 'POST',
+              body: JSON.stringify({ uris: addUris.slice(i, i + 100) }),
+            });
+          }
+          dbg(`AI-EDIT: added ${addUris.length}/${toAdd.length} tracks`);
+        }
+
+        // Reorder
+        if (plan.action === 'reorder') {
+          const uris = plan.reordered_uris || [];
+          await spotifyApi(`/playlists/${playlistId}/items`, { method: 'PUT', body: JSON.stringify({ uris: [] }) });
+          for (let i = 0; i < uris.length; i += 100) {
+            await spotifyApi(`/playlists/${playlistId}/items`, { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+          }
+          dbg(`AI-EDIT: reordered ${uris.length} tracks`);
+        }
+
+        result.innerHTML = '<p style="color:#1db954; font-weight:700;">Done! Changes applied to your playlist.</p>';
+        window._aiEditPlan = null;
+        window._aiEditItems = null;
+        libraryLoaded = false;
+        await loadPlaylists();
+
+      } catch (err) {
+        result.innerHTML = `<p style="color:#ff4444;">Error applying changes: ${esc(err.message)}</p>`;
       }
-      toast(`Removed ${dupes.length} duplicates`);
-      document.getElementById('dupe-remove-btn').style.display = 'none';
-      document.getElementById('dupe-result').innerHTML = '<p style="color:#1db954;">Duplicates removed!</p>';
-      dupeData = null;
-    }
-
-    // ---- Playlist Analytics ----
-    async function analyzePlaylist() {
-      const id = document.getElementById('analytics-playlist').value;
-      if (!id) { toast('Select a playlist'); return; }
-      const result = document.getElementById('analytics-result');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing...</div>';
-
-      const items = await fetchAllPlaylistTracks(id);
-      const trackIds = items.map(i => i.track.id).filter(Boolean);
-      const features = await fetchAudioFeatures(trackIds);
-      const valid = features.filter(Boolean);
-
-      if (!valid.length) { result.innerHTML = '<p>No audio data available for this playlist.</p>'; return; }
-
-      const avg = (arr, key) => arr.reduce((s, f) => s + (f[key] || 0), 0) / arr.length;
-      const avgBpm = Math.round(avg(valid, 'tempo'));
-      const avgEnergy = Math.round(avg(valid, 'energy') * 100);
-      const avgDance = Math.round(avg(valid, 'danceability') * 100);
-      const avgValence = Math.round(avg(valid, 'valence') * 100);
-      const avgAcoustic = Math.round(avg(valid, 'acousticness') * 100);
-
-      // Decade breakdown
-      const decades = {};
-      items.forEach(i => {
-        const year = i.track.album?.release_date?.substring(0, 4);
-        if (year) { const dec = Math.floor(parseInt(year) / 10) * 10 + 's'; decades[dec] = (decades[dec] || 0) + 1; }
-      });
-      const decadeStr = Object.entries(decades).sort((a, b) => b[1] - a[1]).map(([d, c]) => `${d}: ${c}`).join(', ');
-
-      // Top artists
-      const artistCount = {};
-      items.forEach(i => { i.track.artists.forEach(a => { artistCount[a.name] = (artistCount[a.name] || 0) + 1; }); });
-      const topArtists = Object.entries(artistCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
-
-      result.innerHTML = `
-        <div class="stat-grid">
-          <div class="stat-box"><div class="stat-val">${items.length}</div><div class="stat-label">Tracks</div></div>
-          <div class="stat-box"><div class="stat-val">${avgBpm}</div><div class="stat-label">Avg BPM</div></div>
-          <div class="stat-box"><div class="stat-val">${avgEnergy}%</div><div class="stat-label">Energy</div></div>
-          <div class="stat-box"><div class="stat-val">${avgDance}%</div><div class="stat-label">Danceability</div></div>
-          <div class="stat-box"><div class="stat-val">${avgValence}%</div><div class="stat-label">Mood</div></div>
-          <div class="stat-box"><div class="stat-val">${avgAcoustic}%</div><div class="stat-label">Acoustic</div></div>
-        </div>
-        <p style="margin-top:12px; color:#b3b3b3; font-size:12px;">Decades: ${decadeStr || 'N/A'}</p>
-        <p style="margin-top:8px; font-weight:600; font-size:13px;">Top Artists</p>
-        <table><thead><tr><th>Artist</th><th>Tracks</th></tr></thead><tbody>
-          ${topArtists.map(([name, count]) => `<tr><td>${esc(name)}</td><td>${count}</td></tr>`).join('')}
-        </tbody></table>
-      `;
-    }
-
-    // ---- Sort Playlist ----
-    async function sortPlaylist() {
-      const id = document.getElementById('sort-playlist').value;
-      const attr = document.getElementById('sort-attr').value;
-      const dir = document.getElementById('sort-dir').value;
-      if (!id) { toast('Select a playlist'); return; }
-      const result = document.getElementById('sort-result');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Sorting...</div>';
-
-      const items = await fetchAllPlaylistTracks(id);
-      const trackIds = items.map(i => i.track.id).filter(Boolean);
-      const features = await fetchAudioFeatures(trackIds);
-
-      const featureMap = {};
-      features.forEach(f => { if (f) featureMap[f.id] = f; });
-
-      const sorted = items
-        .map(i => ({ item: i, feat: featureMap[i.track.id] }))
-        .filter(x => x.feat)
-        .sort((a, b) => dir === 'asc' ? a.feat[attr] - b.feat[attr] : b.feat[attr] - a.feat[attr]);
-
-      // Reorder by removing all and re-adding in order
-      const uris = sorted.map(x => x.item.track.uri);
-
-      // Clear playlist
-      await spotifyApi(`/playlists/${id}/items`, { method: 'PUT', body: JSON.stringify({ uris: [] }) });
-
-      // Add back in sorted order (100 at a time)
-      for (let i = 0; i < uris.length; i += 100) {
-        await spotifyApi(`/playlists/${id}/items`, { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) });
-      }
-
-      result.innerHTML = `<p style="color:#1db954;">Sorted ${uris.length} tracks by ${attr} (${dir === 'asc' ? 'low→high' : 'high→low'})!</p>
-        <table><thead><tr><th>Track</th><th>${esc(attr)}</th></tr></thead><tbody>
-          ${sorted.slice(0, 20).map(x => `<tr><td>${esc(x.item.track.name)}</td><td>${attr === 'tempo' ? Math.round(x.feat[attr]) : Math.round(x.feat[attr] * 100) + '%'}</td></tr>`).join('')}
-          ${sorted.length > 20 ? `<tr><td colspan="2" style="color:#b3b3b3;">...and ${sorted.length - 20} more</td></tr>` : ''}
-        </tbody></table>`;
-    }
-
-    // ---- Merge Playlists ----
-    async function mergePlaylists() {
-      const a = document.getElementById('merge-a').value;
-      const b = document.getElementById('merge-b').value;
-      const name = document.getElementById('merge-name').value.trim();
-      if (!a || !b) { toast('Select two playlists'); return; }
-      if (!name) { toast('Enter a name'); return; }
-      const result = document.getElementById('merge-result');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Merging...</div>';
-
-      const [tracksA, tracksB] = await Promise.all([fetchAllPlaylistTracks(a), fetchAllPlaylistTracks(b)]);
-      const seen = new Set();
-      const merged = [];
-      [...tracksA, ...tracksB].forEach(i => {
-        if (!seen.has(i.track.uri)) { seen.add(i.track.uri); merged.push(i.track.uri); }
-      });
-
-      const p = await spotifyApi('/me/playlists', { method: 'POST', body: JSON.stringify({ name, public: false }) });
-      for (let i = 0; i < merged.length; i += 100) {
-        await spotifyApi(`/playlists/${p.id}/items`, { method: 'POST', body: JSON.stringify({ uris: merged.slice(i, i + 100) }) });
-      }
-
-      await loadPlaylists();
-      result.innerHTML = `<p style="color:#1db954;">Created "${esc(name)}" with ${merged.length} tracks (${tracksA.length + tracksB.length - merged.length} duplicates removed).</p>`;
-    }
-
-    // ---- Cross-Playlist Search ----
-    async function crossPlaylistSearch() {
-      const query = document.getElementById('xsearch-query').value.trim().toLowerCase();
-      if (!query) { toast('Enter a search term'); return; }
-      const result = document.getElementById('xsearch-result');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching playlists...</div>';
-
-      if (!cachedPlaylists) await populateToolSelects();
-      const matches = [];
-
-      for (const pl of cachedPlaylists) {
-        const tracks = await fetchAllPlaylistTracks(pl.id);
-        const found = tracks.filter(i =>
-          i.track.name.toLowerCase().includes(query) ||
-          i.track.artists.some(a => a.name.toLowerCase().includes(query))
-        );
-        if (found.length) matches.push({ playlist: pl.name, tracks: found });
-      }
-
-      if (!matches.length) { result.innerHTML = '<p>Not found in any playlist.</p>'; return; }
-
-      result.innerHTML = matches.map(m =>
-        `<p style="font-weight:600; margin-top:8px;">${esc(m.playlist)}</p>` +
-        m.tracks.map(i => `<div class="dupe-item"><img src="${i.track.album.images?.[2]?.url || ''}" alt=""><div class="dupe-info"><div class="dupe-name">${esc(i.track.name)}</div><div class="dupe-detail">${esc(i.track.artists.map(a=>a.name).join(', '))}</div></div></div>`).join('')
-      ).join('');
     }
 
     // ---- Blindspots ----
@@ -1811,27 +1729,6 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       closeLibraryDetail();
       loadLibrary(true);
       await loadPlaylists();
-    }
-
-    // ---- Export Playlist ----
-    async function exportPlaylist() {
-      const id = document.getElementById('export-playlist').value;
-      if (!id) { toast('Select a playlist'); return; }
-      const items = await fetchAllPlaylistTracks(id);
-      const name = cachedPlaylists?.find(p => p.id === id)?.name || 'playlist';
-
-      let csv = 'Track,Artist,Album,Duration (s),Date Added\n';
-      items.forEach(i => {
-        const t = i.track;
-        csv += `"${t.name.replace(/"/g, '""')}","${t.artists.map(a=>a.name).join('; ').replace(/"/g, '""')}","${(t.album?.name || '').replace(/"/g, '""')}",${Math.round((t.duration_ms || 0) / 1000)},"${i.added_at || ''}"\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = name + '.csv'; a.click();
-      URL.revokeObjectURL(url);
-      toast(`Exported ${items.length} tracks`);
     }
 
     // ---- Init ----
