@@ -492,10 +492,11 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <button onclick="copyDebugLog()" style="position:fixed;bottom:12px;right:12px;z-index:9999;background:#333;color:#b3b3b3;border:1px solid #555;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;opacity:0.7;">Copy Debug Log</button>
 
   <script>
     // ---- Config ----
-    const VERSION = '1.5.1';
+    const VERSION = '1.6.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -679,7 +680,7 @@
       location.reload();
     }
 
-    async function spotifyApi(path, opts = {}) {
+    async function spotifyApi(path, opts = {}, _retries = 0) {
       const res = await fetch(SPOTIFY_API + path, {
         ...opts,
         headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) },
@@ -687,6 +688,11 @@
       if (res.status === 401) {
         if (await refreshToken()) return spotifyApi(path, opts);
         logout(); return null;
+      }
+      if (res.status === 429 && _retries < 3) {
+        const wait = parseInt(res.headers.get('Retry-After') || '2', 10);
+        await new Promise(r => setTimeout(r, wait * 1000 + 500));
+        return spotifyApi(path, opts, _retries + 1);
       }
       if (res.status === 204 || res.headers.get('content-length') === '0') return {};
       const text = await res.text();
@@ -781,7 +787,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
             'Content-Type': 'application/json', 'x-api-key': apiKey,
             'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
           },
-          body: JSON.stringify({ model, max_tokens: 2048, system: systemMsg, messages }),
+          body: JSON.stringify({ model, max_tokens: 4096, system: systemMsg, messages }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
@@ -1274,6 +1280,8 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     // ---- Blindspots ----
     // LLM-powered: sends taste profile to AI, gets artist suggestions, searches Spotify
     async function findBlindspots() {
+      _debugLog.length = 0;
+      dbg('BLINDSPOTS: start');
       const result = document.getElementById('blindspot-result');
       result.style.display = 'block';
       result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
@@ -1281,105 +1289,120 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       try {
         const apiKey = localStorage.getItem('llm_api_key');
         if (!apiKey) {
+          dbg('BLINDSPOTS: no API key');
           result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
           return;
         }
 
-        const [topArtists, topTracks] = await Promise.all([
-          spotifyApi('/me/top/artists?limit=20&time_range=long_term'),
+        dbg('BLINDSPOTS: fetching spotify data');
+        // Fetch broad listening data to build a thorough known-artist set
+        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed, savedTracks] = await Promise.all([
+          spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
+          spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
+          spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
+          spotifyApi('/me/tracks?limit=50'),
         ]);
 
-        const topItems = topArtists?.items || [];
+        const topItems = topArtistsLong?.items || [];
         if (topItems.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">No top artists found. Listen to more music first!</p>';
           return;
         }
 
-        // Build known artist set for filtering
+        // Build comprehensive known artist set
         const knownArtistNames = new Set();
-        topItems.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        (topTracks?.items || []).forEach(t => t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())));
+        const addArtists = (items) => (items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        const addTrackArtists = (items) => (items || []).forEach(t => (t.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase())));
+        addArtists(topItems);
+        addArtists(topArtistsMed?.items);
+        addTrackArtists(topTracksLong?.items);
+        addTrackArtists(topTracksMed?.items);
+        (savedTracks?.items || []).forEach(i => (i.track?.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase())));
 
         // Build taste profile for LLM
         const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,3).join(', ')})`).join(', ');
-        const trackList = (topTracks?.items || []).slice(0, 15).map(t => `${t.name} by ${t.artists[0]?.name}`).join(', ');
+        const trackList = (topTracksLong?.items || []).slice(0, 20).map(t => `${t.name} by ${t.artists[0]?.name}`).join(', ');
+        const knownList = [...knownArtistNames].slice(0, 100).join(', ');
 
+        dbg(`BLINDSPOTS: known artists=${knownArtistNames.size}, top artists=${topItems.length}`);
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Asking AI for recommendations...</div>';
 
-        // Ask LLM for artist recommendations
+        // Ask LLM for artist recommendations — request 60 to have plenty after filtering
         const llmResponse = await callLLM([{
           role: 'user',
           content: `I need music recommendations. Here are my top artists: ${artistList}
 
-And some of my top tracks: ${trackList}
+Some of my top tracks: ${trackList}
 
-Suggest exactly 15 artists I probably HAVEN'T heard of. They should be:
-- NOT any of the artists listed above or obvious/mainstream artists in those genres
-- Artists who make music adjacent to my taste but from unexpected angles
-- Mix of underground, international, different eras, and cross-genre artists
-- Artists that actually exist on Spotify
+Here are artists I ALREADY know and listen to (do NOT suggest any of these): ${knownList}
 
-Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist One", "Artist Two", "Artist Three"]`
+Suggest exactly 60 artists I probably HAVEN'T heard of. Requirements:
+- NONE of the artists I listed above — I already know them
+- Avoid the most popular/mainstream artists in those genres (I've probably heard them)
+- Focus on lesser-known, underground, underrated, or international artists
+- Artists who make music adjacent to my taste but from unexpected angles, different scenes, or different eras
+- Include artists from outside the US/UK where relevant
+- Every artist must actually exist on Spotify
+- Be creative and surprising — dig deep
+
+IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. Example: ["Artist One", "Artist Two"]`
         }]);
 
+        dbg(`BLINDSPOTS: LLM response length=${llmResponse.length}, first 200 chars: ${llmResponse.slice(0, 200)}`);
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for suggestions...</div>';
 
         // Parse LLM response
         let suggestedArtists = [];
         try {
-          const jsonMatch = llmResponse.match(/\[[\s\S]*?\]/);
+          const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
+          dbg(`BLINDSPOTS: JSON match found=${!!jsonMatch}, match length=${jsonMatch?.[0]?.length || 0}`);
           if (jsonMatch) suggestedArtists = JSON.parse(jsonMatch[0]);
         } catch (e) {
+          dbg(`BLINDSPOTS: JSON parse failed: ${e.message}`);
           result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
           return;
         }
 
-        // Search Spotify for each suggested artist
-        const foundArtists = [];
+        dbg(`BLINDSPOTS: parsed ${suggestedArtists.length} artists from LLM`);
+
+        // Search Spotify for each suggested artist — grab multiple tracks
         const foundTracks = [];
+        const seenTrackIds = new Set();
+        let filteredByKnown = 0;
+        let spotifyMisses = 0;
 
-        for (const name of suggestedArtists.slice(0, 15)) {
-          if (knownArtistNames.has(name.toLowerCase())) continue;
+        for (const name of suggestedArtists.slice(0, 60)) {
+          if (knownArtistNames.has(name.toLowerCase())) { filteredByKnown++; continue; }
 
-          const [artistResult, trackResult] = await Promise.all([
-            spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=artist&limit=1&market=US`),
-            spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=3&market=US`),
-          ]);
-
-          const artist = artistResult?.artists?.items?.[0];
-          if (artist && !knownArtistNames.has(artist.name.toLowerCase())) {
-            foundArtists.push({ artist, suggestedName: name });
-          }
+          const trackResult = await spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=5&market=US`);
 
           const tracks = trackResult?.tracks?.items || [];
+          if (tracks.length === 0) spotifyMisses++;
           for (const t of tracks) {
-            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase())) {
+            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase()) && !seenTrackIds.has(t.id)) {
+              seenTrackIds.add(t.id);
               foundTracks.push(t);
             }
           }
         }
 
-        // Build results
-        let html = '';
+        dbg(`BLINDSPOTS: filteredByKnown=${filteredByKnown}, spotifyMisses=${spotifyMisses}, foundTracks=${foundTracks.length}`);
 
-        if (foundArtists.length) {
-          html += `<p style="font-weight:700; font-size:15px; margin-bottom:8px;">Artists you probably haven't heard</p>`;
-          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">AI-curated based on your taste — filtered out ${knownArtistNames.size} artists you already know</p>`;
-          html += foundArtists.map(d => `
-            <div class="dupe-item">
-              <img src="${d.artist.images?.[2]?.url || d.artist.images?.[0]?.url || ''}" alt="">
-              <div class="dupe-info">
-                <div class="dupe-name">${esc(d.artist.name)}</div>
-                <div class="dupe-detail">${(d.artist.genres || []).slice(0,3).join(', ') || 'unknown genre'}</div>
-              </div>
-            </div>`).join('');
+        // Shuffle so same-artist tracks aren't clustered together
+        for (let i = foundTracks.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [foundTracks[i], foundTracks[j]] = [foundTracks[j], foundTracks[i]];
         }
 
+        // Build results — just tracks, no artist cards
+        let html = '';
+
         if (foundTracks.length) {
-          html += `<p style="font-weight:700; font-size:15px; margin-top:16px; margin-bottom:8px;">Tracks to try</p>`;
-          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">Top tracks from suggested artists &middot; click + to stage</p>`;
-          html += foundTracks.slice(0, 15).map(t => {
+          html += `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Blindspot tracks (${foundTracks.length})</p>`;
+          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">AI-curated from ${suggestedArtists.length} artists you probably haven't heard &middot; filtered out ${knownArtistNames.size} you already know</p>`;
+          html += `<div style="margin:8px 0 12px;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('blindspot-result', 'Dannify Blindspots')">Save all as playlist</button></div>`;
+          html += foundTracks.map(t => {
             const uri = `spotify:track:${t.id}`;
             const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
             const isStaged = stagedTracks.some(s => s.uri === uri);
@@ -1395,9 +1418,6 @@ Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist 
           }).join('');
         }
 
-        if (foundTracks.length) {
-          html += `<div style="margin-top:12px;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('blindspot-result', 'Dannify Blindspots')">Save all as playlist</button></div>`;
-        }
 
         if (!html) html = '<p>No results found. Try again for different suggestions.</p>';
         result.innerHTML = html;
@@ -1414,6 +1434,8 @@ Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist 
     // ---- Discover Infinitely ----
     // LLM-powered: AI suggests tracks based on taste, Spotify searches verify them
     async function discoverInfinitely(count = 50) {
+      _debugLog.length = 0;
+      dbg(`DISCOVER: start, count=${count}`);
       const result = document.getElementById('discover-result');
       result.style.display = 'block';
       result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
@@ -1425,29 +1447,46 @@ Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist 
           return;
         }
 
-        const [topArtists, topTracks, saved] = await Promise.all([
-          spotifyApi('/me/top/artists?limit=20&time_range=medium_term'),
+        // Fetch broad data for both taste profiling and filtering
+        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed, saved] = await Promise.all([
+          spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
+          spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
+          spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
           spotifyApi('/me/tracks?limit=50'),
         ]);
 
-        const topItems = topArtists?.items || [];
+        const topItems = topArtistsLong?.items || [];
         if (topItems.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">Not enough listening data yet!</p>';
           return;
         }
 
-        // Collect known tracks and artists to filter out
+        // Build comprehensive filter sets
         const myTrackNames = new Set();
         const knownArtistNames = new Set();
-        (topTracks?.items || []).forEach(t => { myTrackNames.add((t.name + ' ' + t.artists[0]?.name).toLowerCase()); t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())); });
-        (saved?.items || []).forEach(i => { myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase()); i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase())); });
+        const addTrackData = (items) => (items || []).forEach(t => {
+          myTrackNames.add((t.name + ' ' + t.artists[0]?.name).toLowerCase());
+          t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        });
+        addTrackData(topTracksLong?.items);
+        addTrackData(topTracksMed?.items);
+        (saved?.items || []).forEach(i => {
+          myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
+          i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        });
+        (topItems || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        (topArtistsMed?.items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
 
         // Build taste profile
         const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,2).join(', ')})`).join(', ');
-        const trackList = (topTracks?.items || []).slice(0, 20).map(t => `"${t.name}" by ${t.artists[0]?.name}`).join(', ');
+        const trackList = (topTracksLong?.items || []).slice(0, 20).map(t => `"${t.name}" by ${t.artists[0]?.name}`).join(', ');
+        const knownList = [...knownArtistNames].slice(0, 100).join(', ');
 
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>AI is building your discovery playlist...</div>';
+        // Request significantly more from LLM to account for Spotify search failures
+        const llmCount = Math.min(count * 2 + 20, 150);
+
+        result.innerHTML = `<div class="typing"><div class="spinner"></div>AI is building your discovery playlist (${count} tracks)...</div>`;
 
         // Ask LLM for track recommendations
         const llmResponse = await callLLM([{
@@ -1457,46 +1496,97 @@ Respond with ONLY a JSON array of artist names, nothing else. Example: ["Artist 
 Top artists: ${artistList}
 Recent tracks: ${trackList}
 
-Suggest exactly 30 specific songs (track + artist) I should listen to. Rules:
-- Do NOT suggest songs by any of my top artists listed above
-- Mix of: deep cuts from adjacent artists, different decades, international music, cross-genre surprises
-- Every suggestion must be a real song that exists on Spotify
-- Prioritize songs I'm unlikely to have heard
-- Be creative and unexpected — don't just suggest the most popular songs in similar genres
+Artists I ALREADY know (do NOT suggest songs by any of these): ${knownList}
 
-Respond with ONLY a JSON array of objects, nothing else. Example:
+Suggest exactly ${llmCount} specific songs (track + artist) I should listen to. Rules:
+- NONE of the artists I listed as already known
+- Avoid the biggest mainstream hits — I want deep cuts, hidden gems, underrated tracks
+- Mix of: underground artists, different decades, international music, cross-genre surprises
+- Every suggestion must be a real song that exists on Spotify
+- Be creative, surprising, and varied — dig deep into music history and global scenes
+- IMPORTANT: Never put more than 1 song by the same artist. Each artist should appear only once.
+- Vary the order — alternate between genres, decades, and regions so it never feels repetitive
+
+IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatsoever. Format:
 [{"track": "Song Name", "artist": "Artist Name"}, ...]`
         }]);
 
+        dbg(`DISCOVER: LLM response length=${llmResponse.length}, first 200 chars: ${llmResponse.slice(0, 200)}`);
         result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for tracks...</div>';
 
-        // Parse LLM response
+        // Parse LLM response — try to extract JSON robustly
         let suggestions = [];
         try {
-          const jsonMatch = llmResponse.match(/\[[\s\S]*?\]/);
+          const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
+          dbg(`DISCOVER: JSON match found=${!!jsonMatch}, match length=${jsonMatch?.[0]?.length || 0}`);
           if (jsonMatch) suggestions = JSON.parse(jsonMatch[0]);
         } catch (e) {
-          result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
+          dbg(`DISCOVER: JSON parse failed: ${e.message}, trying fallback`);
+          // Try line-by-line fallback if JSON is slightly malformed
+          try {
+            const cleaned = llmResponse.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+            suggestions = JSON.parse(cleaned);
+          } catch (e2) {
+            dbg(`DISCOVER: fallback parse also failed: ${e2.message}`);
+            result.innerHTML = `<p style="color:#ff4444;">AI response was malformed. Try again.</p>`;
+            return;
+          }
+        }
+
+        dbg(`DISCOVER: parsed ${suggestions.length} suggestions from LLM`);
+        if (suggestions.length === 0) {
+          result.innerHTML = '<p style="color:#ff4444;">AI returned no suggestions. Try again.</p>';
           return;
         }
 
-        // Search Spotify for each suggestion
+        // Search Spotify for each suggestion — 1 track per artist max
         const allTracks = [];
         const seenIds = new Set();
+        const seenArtistNames = new Set();
+        let discFilteredKnown = 0, discFilteredDupeArtist = 0, discSpotifyMiss = 0, discFilteredMyTrack = 0;
 
-        for (const s of suggestions.slice(0, 30)) {
+        for (const s of suggestions) {
+          if (allTracks.length >= count) break;
           if (!s.track || !s.artist) continue;
-          if (knownArtistNames.has(s.artist.toLowerCase())) continue;
+          if (knownArtistNames.has(s.artist.toLowerCase())) { discFilteredKnown++; continue; }
+          if (seenArtistNames.has(s.artist.toLowerCase())) { discFilteredDupeArtist++; continue; }
 
-          const q = `track:${encodeURIComponent(s.track)}+artist:${encodeURIComponent(s.artist)}`;
-          const data = await spotifyApi(`/search?q=${q}&type=track&limit=1&market=US`);
-          const track = data?.tracks?.items?.[0];
+          // Try exact search first, then broader fallback
+          let q = encodeURIComponent(`track:${s.track} artist:${s.artist}`);
+          let data = await spotifyApi(`/search?q=${q}&type=track&limit=3&market=US`);
+          let tracks = data?.tracks?.items || [];
+
+          // Fallback: simpler query if structured search finds nothing
+          if (tracks.length === 0) {
+            q = encodeURIComponent(`${s.track} ${s.artist}`);
+            data = await spotifyApi(`/search?q=${q}&type=track&limit=5&market=US`);
+            tracks = data?.tracks?.items || [];
+          }
+
+          if (tracks.length === 0) { discSpotifyMiss++; dbg(`DISCOVER: Spotify miss for "${s.track}" by "${s.artist}"`); }
+
+          // Pick the best match
+          const track = tracks.find(t =>
+            t.name.toLowerCase().includes(s.track.toLowerCase().slice(0, 10)) ||
+            t.artists.some(a => a.name.toLowerCase().includes(s.artist.toLowerCase().slice(0, 8)))
+          ) || tracks[0];
 
           if (track && !seenIds.has(track.id) && !myTrackNames.has((track.name + ' ' + track.artists[0]?.name).toLowerCase())) {
             seenIds.add(track.id);
-            allTracks.push({ ...track, _via: 'AI pick' });
+            seenArtistNames.add(s.artist.toLowerCase());
+            if (track.artists[0]) seenArtistNames.add(track.artists[0].name.toLowerCase());
+            allTracks.push(track);
+          } else if (track && myTrackNames.has((track.name + ' ' + track.artists[0]?.name).toLowerCase())) {
+            discFilteredMyTrack++;
+          }
+
+          // Update progress
+          if (allTracks.length % 10 === 0 && allTracks.length > 0) {
+            result.innerHTML = `<div class="typing"><div class="spinner"></div>Found ${allTracks.length}/${count} tracks so far...</div>`;
           }
         }
+
+        dbg(`DISCOVER: DONE. found=${allTracks.length}, filteredKnown=${discFilteredKnown}, dupeArtist=${discFilteredDupeArtist}, spotifyMiss=${discSpotifyMiss}, alreadyInLibrary=${discFilteredMyTrack}`);
 
         if (allTracks.length === 0) {
           result.innerHTML = '<p style="color:#ff4444;">No tracks found on Spotify. Try again for different suggestions.</p>';
@@ -1577,6 +1667,13 @@ Respond with ONLY a JSON array of objects, nothing else. Example:
       } else {
         document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
       }
+    }
+
+    // ---- Debug log ----
+    const _debugLog = [];
+    function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
+    function copyDebugLog() {
+      navigator.clipboard.writeText(_debugLog.join('\n')).then(() => toast('Debug log copied!'));
     }
 
     function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2500); }
