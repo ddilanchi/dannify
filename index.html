@@ -195,6 +195,47 @@
 
     .tool-card .tool-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+    /* Library tab */
+    .library-panel { flex: 1; overflow-y: auto; padding: 24px; }
+    .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+    .library-card {
+      background: #1a1a1a; border-radius: 10px; padding: 14px; cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .library-card:hover { background: #252525; transform: scale(1.02); }
+    .library-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; margin-bottom: 10px; background: #282828; }
+    .library-card .lc-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .library-card .lc-meta { color: #b3b3b3; font-size: 12px; margin-top: 2px; }
+
+    .library-detail-header {
+      display: flex; align-items: center; gap: 16px; padding: 20px 24px;
+      border-bottom: 1px solid #282828; flex-shrink: 0;
+    }
+    .library-detail-header img { width: 80px; height: 80px; border-radius: 6px; object-fit: cover; background: #282828; }
+    .library-detail-header .ldh-info { flex: 1; min-width: 0; }
+    .library-detail-header .ldh-name { font-size: 20px; font-weight: 800; }
+    .library-detail-header .ldh-meta { color: #b3b3b3; font-size: 13px; margin-top: 2px; }
+    .library-detail-header .ldh-actions { display: flex; gap: 8px; }
+
+    .library-tracklist { flex: 1; overflow-y: auto; padding: 8px 16px; }
+    .library-track {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: 6px; transition: background 0.15s;
+    }
+    .library-track:hover { background: #1a1a1a; }
+    .library-track .lt-num { color: #727272; font-size: 13px; width: 28px; text-align: right; flex-shrink: 0; }
+    .library-track img { width: 40px; height: 40px; border-radius: 4px; flex-shrink: 0; }
+    .library-track .lt-info { flex: 1; min-width: 0; }
+    .library-track .lt-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .library-track .lt-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .library-track .lt-duration { color: #727272; font-size: 12px; flex-shrink: 0; }
+    .library-track .lt-remove {
+      color: #b3b3b3; cursor: pointer; font-size: 14px; padding: 4px 6px;
+      opacity: 0; transition: opacity 0.15s; flex-shrink: 0;
+    }
+    .library-track:hover .lt-remove { opacity: 1; }
+    .library-track .lt-remove:hover { color: #e74c3c; }
+
     .tool-result {
       background: #121212; border-radius: 8px; padding: 16px; margin-top: 12px;
       font-size: 13px; max-height: 400px; overflow-y: auto;
@@ -296,6 +337,7 @@
     <div class="left-col">
       <div class="tab-bar">
         <button class="active" onclick="switchTab('chat', this)">Chat</button>
+        <button onclick="switchTab('library', this)">Library</button>
         <button onclick="switchTab('tools', this)">Tools</button>
       </div>
 
@@ -321,6 +363,36 @@
         <div class="chat-input-area">
           <input type="text" id="chat-input" placeholder="Describe what you want to hear..." autocomplete="off">
           <button class="btn btn-green btn-sm" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+
+      <!-- Library tab -->
+      <div class="tab-content" id="tab-library" style="overflow:hidden;">
+        <!-- Playlist grid view -->
+        <div id="library-grid-view" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+          <div style="padding:20px 24px 12px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h2 style="font-size:22px; font-weight:800;">Your Library</h2>
+              <p style="color:#b3b3b3; font-size:13px; margin-top:2px;" id="library-count"></p>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="loadLibrary(true)">Refresh</button>
+          </div>
+          <div class="library-panel" id="library-grid"></div>
+        </div>
+        <!-- Playlist detail view -->
+        <div id="library-detail-view" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+          <div class="library-detail-header">
+            <img id="lib-detail-img" src="" alt="">
+            <div class="ldh-info">
+              <div class="ldh-name" id="lib-detail-name"></div>
+              <div class="ldh-meta" id="lib-detail-meta"></div>
+            </div>
+            <div class="ldh-actions">
+              <button class="btn btn-outline btn-sm" onclick="closeLibraryDetail()">&larr; Back</button>
+              <button class="btn btn-red btn-sm" id="lib-delete-btn" onclick="deletePlaylist()">Delete Playlist</button>
+            </div>
+          </div>
+          <div class="library-tracklist" id="lib-detail-tracks"></div>
         </div>
       </div>
 
@@ -496,7 +568,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.6.0';
+    const VERSION = '1.7.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -523,6 +595,7 @@
       btn.classList.add('active');
       document.getElementById('tab-' + tab).classList.add('active');
       if (tab === 'tools') populateToolSelects();
+      if (tab === 'library') loadLibrary();
     }
 
     // ---- Settings ----
@@ -1619,6 +1692,125 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
           result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
         }
       }
+    }
+
+    // ---- Library ----
+    let libraryLoaded = false;
+    let currentLibraryPlaylist = null;
+
+    async function loadLibrary(force = false) {
+      if (libraryLoaded && !force) return;
+      const grid = document.getElementById('library-grid');
+      grid.innerHTML = '<div class="typing"><div class="spinner"></div>Loading playlists...</div>';
+
+      const data = await spotifyApi('/me/playlists?limit=50');
+      const playlists = data?.items || [];
+      cachedPlaylists = playlists;
+      libraryLoaded = true;
+
+      document.getElementById('library-count').textContent = `${playlists.length} playlists`;
+
+      if (!playlists.length) {
+        grid.innerHTML = '<p style="color:#727272; padding:40px; text-align:center;">No playlists yet.</p>';
+        return;
+      }
+
+      grid.innerHTML = '<div class="library-grid">' + playlists.map(p => {
+        const img = p.images?.[0]?.url || '';
+        const owner = p.owner?.display_name || '';
+        return `
+        <div class="library-card" onclick="openLibraryPlaylist('${p.id}')">
+          <img src="${img}" alt="" ${!img ? 'style="background:#282828;"' : ''}>
+          <div class="lc-name">${esc(p.name)}</div>
+          <div class="lc-meta">${p.tracks?.total || 0} tracks${owner ? ' · ' + esc(owner) : ''}</div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    async function openLibraryPlaylist(playlistId) {
+      const pl = cachedPlaylists?.find(p => p.id === playlistId);
+      if (!pl) return;
+      currentLibraryPlaylist = pl;
+
+      document.getElementById('library-grid-view').style.display = 'none';
+      const detail = document.getElementById('library-detail-view');
+      detail.style.display = 'flex';
+
+      document.getElementById('lib-detail-img').src = pl.images?.[0]?.url || '';
+      document.getElementById('lib-detail-name').textContent = pl.name;
+      document.getElementById('lib-detail-meta').textContent = `${pl.tracks?.total || 0} tracks · ${pl.owner?.display_name || ''}`;
+
+      // Only show delete for playlists user owns
+      const isOwner = pl.owner?.id === userId;
+      document.getElementById('lib-delete-btn').style.display = isOwner ? '' : 'none';
+
+      const trackList = document.getElementById('lib-detail-tracks');
+      trackList.innerHTML = '<div class="typing"><div class="spinner"></div>Loading tracks...</div>';
+
+      const items = await fetchAllPlaylistTracks(playlistId);
+
+      if (!items.length) {
+        trackList.innerHTML = '<p style="color:#727272; padding:40px; text-align:center;">This playlist is empty.</p>';
+        return;
+      }
+
+      const isEditable = isOwner || pl.collaborative;
+      trackList.innerHTML = items.map((item, i) => {
+        const t = item.track;
+        if (!t) return '';
+        const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+        const dur = t.duration_ms ? `${Math.floor(t.duration_ms / 60000)}:${String(Math.floor((t.duration_ms % 60000) / 1000)).padStart(2, '0')}` : '';
+        const uri = t.uri || '';
+        return `
+        <div class="library-track" data-uri="${uri}" data-idx="${i}">
+          <span class="lt-num">${i + 1}</span>
+          <img src="${img}" alt="">
+          <div class="lt-info">
+            <div class="lt-name">${esc(t.name)}</div>
+            <div class="lt-artist">${esc(t.artists?.map(a => a.name).join(', ') || '')} · ${esc(t.album?.name || '')}</div>
+          </div>
+          <span class="lt-duration">${dur}</span>
+          ${isEditable ? `<span class="lt-remove" onclick="removeTrackFromPlaylist('${playlistId}', '${uri}', ${i}, this)" title="Remove">&#10005;</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    function closeLibraryDetail() {
+      document.getElementById('library-detail-view').style.display = 'none';
+      document.getElementById('library-grid-view').style.display = 'flex';
+      currentLibraryPlaylist = null;
+    }
+
+    async function removeTrackFromPlaylist(playlistId, uri, position, el) {
+      if (!confirm('Remove this track?')) return;
+      const res = await spotifyApi(`/playlists/${playlistId}/tracks`, {
+        method: 'DELETE',
+        body: JSON.stringify({ tracks: [{ uri, positions: [position] }] }),
+      });
+      if (res?.snapshot_id) {
+        el.closest('.library-track').remove();
+        // Re-number remaining tracks
+        document.querySelectorAll('#lib-detail-tracks .library-track').forEach((row, i) => {
+          row.querySelector('.lt-num').textContent = i + 1;
+          row.dataset.idx = i;
+        });
+        const meta = document.getElementById('lib-detail-meta');
+        const count = document.querySelectorAll('#lib-detail-tracks .library-track').length;
+        meta.textContent = `${count} tracks · ${currentLibraryPlaylist?.owner?.display_name || ''}`;
+        toast('Track removed');
+      } else {
+        toast('Failed to remove track');
+      }
+    }
+
+    async function deletePlaylist() {
+      if (!currentLibraryPlaylist) return;
+      if (!confirm(`Delete "${currentLibraryPlaylist.name}"? This will unfollow/remove it from your library.`)) return;
+      const res = await spotifyApi(`/playlists/${currentLibraryPlaylist.id}/followers`, { method: 'DELETE' });
+      toast(`Removed "${currentLibraryPlaylist.name}"`);
+      closeLibraryDetail();
+      loadLibrary(true);
+      await loadPlaylists();
     }
 
     // ---- Export Playlist ----
