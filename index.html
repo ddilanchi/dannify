@@ -833,6 +833,22 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
     function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
 
+    async function fetchAllSavedTracks(progressCb) {
+      const all = [];
+      let offset = 0;
+      const limit = 50;
+      while (true) {
+        const data = await spotifyApi(`/me/tracks?limit=${limit}&offset=${offset}`);
+        const items = data?.items || [];
+        if (items.length === 0) break;
+        all.push(...items);
+        if (progressCb) progressCb(all.length, data.total);
+        if (items.length < limit || all.length >= (data.total || Infinity)) break;
+        offset += limit;
+      }
+      return all;
+    }
+
     async function resolveTrack(title, artist) {
       const q = encodeURIComponent(`${title} ${artist}`);
       const sr = await spotifyApi(`/search?q=${q}&type=track&limit=1`);
@@ -1286,13 +1302,19 @@ IMPORTANT: Only output the JSON object, nothing else.`
         }
 
         dbg('BLINDSPOTS: fetching spotify data');
-        // Fetch broad listening data to build a thorough known-artist set
-        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed, savedTracks] = await Promise.all([
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Loading your liked songs...</div>';
+        // Fetch all liked songs to build a thorough exclusion list
+        const savedItems = await fetchAllSavedTracks((n, total) => {
+          result.innerHTML = `<div class="typing"><div class="spinner"></div>Loading liked songs... ${n}/${total}</div>`;
+        });
+        dbg(`BLINDSPOTS: fetched ${savedItems.length} saved tracks`);
+
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
+        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed] = await Promise.all([
           spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
           spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
-          spotifyApi('/me/tracks?limit=50'),
         ]);
 
         const topItems = topArtistsLong?.items || [];
@@ -1309,7 +1331,11 @@ IMPORTANT: Only output the JSON object, nothing else.`
         addArtists(topArtistsMed?.items);
         addTrackArtists(topTracksLong?.items);
         addTrackArtists(topTracksMed?.items);
-        (savedTracks?.items || []).forEach(i => (i.track?.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase())));
+        const knownTrackKeys = new Set();
+        savedItems.forEach(i => {
+          (i.track?.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+          if (i.track) knownTrackKeys.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
+        });
 
         // Build taste profile for LLM
         const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,3).join(', ')})`).join(', ');
@@ -1377,7 +1403,8 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
           const tracks = (topTracksResult?.tracks || []).slice(0, 5);
           if (tracks.length === 0) spotifyMisses++;
           for (const t of tracks) {
-            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase()) && !seenTrackIds.has(t.id)) {
+            const trackKey = (t.name + ' ' + (t.artists[0]?.name || '')).toLowerCase();
+            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase()) && !seenTrackIds.has(t.id) && !knownTrackKeys.has(trackKey)) {
               seenTrackIds.add(t.id);
               foundTracks.push(t);
             }
@@ -1444,15 +1471,21 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
           return;
         }
 
-        // Fetch broad data for both taste profiling and filtering
-        const [topArtistsLong, topArtistsMed, topArtistsShort, topTracksLong, topTracksMed, topTracksShort, saved, recentlyPlayed] = await Promise.all([
+        // Fetch all liked songs for comprehensive filtering
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Loading your liked songs...</div>';
+        const savedItems = await fetchAllSavedTracks((n, total) => {
+          result.innerHTML = `<div class="typing"><div class="spinner"></div>Loading liked songs... ${n}/${total}</div>`;
+        });
+        dbg(`DISCOVER: fetched ${savedItems.length} saved tracks`);
+
+        result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
+        const [topArtistsLong, topArtistsMed, topArtistsShort, topTracksLong, topTracksMed, topTracksShort, recentlyPlayed] = await Promise.all([
           spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
           spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
           spotifyApi('/me/top/artists?limit=50&time_range=short_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=short_term'),
-          spotifyApi('/me/tracks?limit=50'),
           spotifyApi('/me/player/recently-played?limit=50'),
         ]);
 
@@ -1472,9 +1505,9 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
         addTrackData(topTracksLong?.items);
         addTrackData(topTracksMed?.items);
         addTrackData(topTracksShort?.items);
-        (saved?.items || []).forEach(i => {
-          myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
-          i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        savedItems.forEach(i => {
+          myTrackNames.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
+          (i.track.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
         });
         (recentlyPlayed?.items || []).forEach(i => {
           myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
