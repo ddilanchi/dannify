@@ -493,7 +493,7 @@
 
   <script>
     // ---- Config ----
-    const VERSION = '1.8.0';
+    const VERSION = '1.9.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -1357,7 +1357,7 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
 
         dbg(`BLINDSPOTS: parsed ${suggestedArtists.length} artists from LLM`);
 
-        // Search Spotify for each suggested artist — grab multiple tracks
+        // Search Spotify for each suggested artist — grab their top tracks
         const foundTracks = [];
         const seenTrackIds = new Set();
         let filteredByKnown = 0;
@@ -1366,9 +1366,15 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
         for (const name of suggestedArtists.slice(0, 60)) {
           if (knownArtistNames.has(name.toLowerCase())) { filteredByKnown++; continue; }
 
-          const trackResult = await spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=5&market=US`);
+          // Find the artist on Spotify first
+          const artistResult = await spotifyApi(`/search?q=${encodeURIComponent(name)}&type=artist&limit=1`);
+          const artist = artistResult?.artists?.items?.[0];
+          if (!artist) { spotifyMisses++; continue; }
+          if (knownArtistNames.has(artist.name.toLowerCase())) { filteredByKnown++; continue; }
 
-          const tracks = trackResult?.tracks?.items || [];
+          // Fetch their top tracks (most popular) instead of random search results
+          const topTracksResult = await spotifyApi(`/artists/${artist.id}/top-tracks?market=US`);
+          const tracks = (topTracksResult?.tracks || []).slice(0, 5);
           if (tracks.length === 0) spotifyMisses++;
           for (const t of tracks) {
             if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase()) && !seenTrackIds.has(t.id)) {
@@ -1439,12 +1445,15 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
         }
 
         // Fetch broad data for both taste profiling and filtering
-        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed, saved] = await Promise.all([
+        const [topArtistsLong, topArtistsMed, topArtistsShort, topTracksLong, topTracksMed, topTracksShort, saved, recentlyPlayed] = await Promise.all([
           spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
           spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
+          spotifyApi('/me/top/artists?limit=50&time_range=short_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
           spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
+          spotifyApi('/me/top/tracks?limit=50&time_range=short_term'),
           spotifyApi('/me/tracks?limit=50'),
+          spotifyApi('/me/player/recently-played?limit=50'),
         ]);
 
         const topItems = topArtistsLong?.items || [];
@@ -1462,12 +1471,18 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
         });
         addTrackData(topTracksLong?.items);
         addTrackData(topTracksMed?.items);
+        addTrackData(topTracksShort?.items);
         (saved?.items || []).forEach(i => {
+          myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
+          i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        });
+        (recentlyPlayed?.items || []).forEach(i => {
           myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
           i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
         });
         (topItems || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
         (topArtistsMed?.items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+        (topArtistsShort?.items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
 
         // Build taste profile
         const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,2).join(', ')})`).join(', ');
@@ -1490,13 +1505,16 @@ Recent tracks: ${trackList}
 Artists I ALREADY know (do NOT suggest songs by any of these): ${knownList}
 
 Suggest exactly ${llmCount} specific songs (track + artist) I should listen to. Rules:
-- NONE of the artists I listed as already known
-- Avoid the biggest mainstream hits — I want deep cuts, hidden gems, underrated tracks
+- NONE of the artists I listed as already known — this is critical, do not suggest anyone from that list
+- Also avoid songs that are commonly found on popular Spotify playlists (like Today's Top Hits, RapCaviar, etc.) — if a casual listener would recognize it, skip it
+- Prioritize QUALITY: critically acclaimed, fan-favorite deep cuts, songs with emotional impact or unique production — not just obscure for the sake of obscure
+- Each suggestion should be a genuinely great song that rewards the listener, not filler
 - Mix of: underground artists, different decades, international music, cross-genre surprises
-- Every suggestion must be a real song that exists on Spotify
+- Every suggestion must be a real song that actually exists on Spotify
 - Be creative, surprising, and varied — dig deep into music history and global scenes
 - IMPORTANT: Never put more than 1 song by the same artist. Each artist should appear only once.
 - Vary the order — alternate between genres, decades, and regions so it never feels repetitive
+- Lean toward songs that have cult followings, strong critical reception, or are beloved within niche communities
 
 IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatsoever. Format:
 [{"track": "Song Name", "artist": "Artist Name"}, ...]`
