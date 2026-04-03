@@ -202,7 +202,16 @@
       background: #1a1a1a; border-radius: 10px; padding: 14px; cursor: pointer;
       transition: background 0.15s, transform 0.1s;
     }
+    .library-card { position: relative; }
     .library-card:hover { background: #252525; transform: scale(1.02); }
+    .library-card .lc-delete {
+      position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+      border-radius: 50%; background: rgba(0,0,0,0.7); border: none; color: #b3b3b3;
+      font-size: 16px; cursor: pointer; display: none; align-items: center; justify-content: center;
+      z-index: 2; transition: background 0.15s, color 0.15s;
+    }
+    .library-card:hover .lc-delete { display: flex; }
+    .library-card .lc-delete:hover { background: #e74c3c; color: #fff; }
     .library-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; margin-bottom: 10px; background: #282828; }
     .library-card .lc-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .library-card .lc-meta { color: #b3b3b3; font-size: 12px; margin-top: 2px; }
@@ -1692,8 +1701,10 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       grid.innerHTML = '<div class="library-grid">' + playlists.map(p => {
         const img = p.images?.[0]?.url || '';
         const owner = p.owner?.display_name || '';
+        const isOwner = p.owner?.id === userId;
         return `
         <div class="library-card" onclick="openLibraryPlaylist('${p.id}')">
+          ${isOwner ? `<button class="lc-delete" title="Delete playlist" onclick="event.stopPropagation(); deletePlaylistById('${p.id}', '${esc(p.name).replace(/'/g, "\\'")}')">&#10005;</button>` : ''}
           <img src="${img}" alt="" ${!img ? 'style="background:#282828;"' : ''}>
           <div class="lc-name">${esc(p.name)}</div>
           <div class="lc-meta">${p.tracks?.total || 0} tracks${owner ? ' · ' + esc(owner) : ''}</div>
@@ -1775,6 +1786,14 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       } else {
         toast('Failed to remove track');
       }
+    }
+
+    async function deletePlaylistById(playlistId, name) {
+      if (!confirm(`Delete "${name}"? This will unfollow/remove it from your library.`)) return;
+      await spotifyApi(`/playlists/${playlistId}/followers`, { method: 'DELETE' });
+      toast(`Removed "${name}"`);
+      loadLibrary(true);
+      await loadPlaylists();
     }
 
     async function deletePlaylist() {
