@@ -834,17 +834,22 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
     function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
 
     async function fetchAllSavedTracks(progressCb) {
-      const all = [];
-      let offset = 0;
       const limit = 50;
-      while (true) {
-        const data = await spotifyApi(`/me/tracks?limit=${limit}&offset=${offset}`);
-        const items = data?.items || [];
-        if (items.length === 0) break;
-        all.push(...items);
-        if (progressCb) progressCb(all.length, data.total);
-        if (items.length < limit || all.length >= (data.total || Infinity)) break;
-        offset += limit;
+      // First request to get total count
+      const first = await spotifyApi(`/me/tracks?limit=${limit}&offset=0`);
+      const total = first?.total || 0;
+      const all = [...(first?.items || [])];
+      if (progressCb) progressCb(all.length, total);
+      if (all.length >= total) return all;
+
+      // Build all remaining page offsets and fetch in parallel batches of 5
+      const offsets = [];
+      for (let o = limit; o < total; o += limit) offsets.push(o);
+      for (let i = 0; i < offsets.length; i += 5) {
+        const batch = offsets.slice(i, i + 5);
+        const results = await Promise.all(batch.map(o => spotifyApi(`/me/tracks?limit=${limit}&offset=${o}`)));
+        for (const data of results) all.push(...(data?.items || []));
+        if (progressCb) progressCb(all.length, total);
       }
       return all;
     }
