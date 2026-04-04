@@ -706,7 +706,14 @@
       });
       if (res.status === 401) {
         if (await refreshToken()) return spotifyApi(path, opts);
-        logout(); return null;
+        // Refresh failed — clear tokens without reloading to avoid loops
+        accessToken = null;
+        localStorage.removeItem('spotify_token');
+        localStorage.removeItem('spotify_token_expires');
+        localStorage.removeItem('spotify_refresh_token');
+        toast('Session expired — please log in again.');
+        document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
+        return null;
       }
       if (res.status === 429 && _retries < 3) {
         const wait = parseInt(res.headers.get('Retry-After') || '2', 10);
@@ -719,7 +726,7 @@
         const data = JSON.parse(text);
         if (data.error) console.warn(`Spotify API error on ${path}:`, data.error);
         return data;
-      } catch { return {}; }
+      } catch (e) { return {}; }
     }
 
     // ---- Fetch all tracks from a playlist (handles pagination) ----
