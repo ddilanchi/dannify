@@ -501,6 +501,10 @@
   <button onclick="copyDebugLog()" style="position:fixed;bottom:12px;right:12px;z-index:9999;background:#333;color:#b3b3b3;border:1px solid #555;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;opacity:0.7;">Copy Debug Log</button>
 
   <script>
+    // ---- Debug log ----
+    const _debugLog = [];
+    function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
+
     // ---- Config ----
     const VERSION = '1.9.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
@@ -623,6 +627,7 @@
     }
 
     async function login() {
+      dbg('LOGIN: starting PKCE flow');
       const verifier = generateRandom(64);
       const challenge = base64url(await sha256(verifier));
       const state = generateRandom(16);
@@ -630,6 +635,7 @@
       localStorage.setItem('pkce_verifier', verifier);
       sessionStorage.setItem('oauth_state', state);
       localStorage.setItem('oauth_state', state);
+      dbg(`LOGIN: redirect_uri=${REDIRECT_URI}, scopes=${SCOPES}`);
       const params = new URLSearchParams({
         response_type: 'code', client_id: CLIENT_ID, scope: SCOPES,
         redirect_uri: REDIRECT_URI, state, code_challenge_method: 'S256', code_challenge: challenge,
@@ -638,13 +644,16 @@
     }
 
     async function handleCallback() {
+      dbg('CALLBACK: handling OAuth callback');
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
-      if (!code) return false;
+      if (!code) { dbg('CALLBACK: no code in URL'); return false; }
       const storedState = sessionStorage.getItem('oauth_state') || localStorage.getItem('oauth_state');
-      if (params.get('state') !== storedState) { toast('Auth error — state mismatch. Please try logging in again.'); window.history.replaceState({}, '', REDIRECT_URI); return false; }
+      dbg(`CALLBACK: state match=${params.get('state') === storedState}, hasVerifier_session=${!!sessionStorage.getItem('pkce_verifier')}, hasVerifier_local=${!!localStorage.getItem('pkce_verifier')}`);
+      if (params.get('state') !== storedState) { dbg('CALLBACK: state mismatch'); toast('Auth error — state mismatch. Please try logging in again.'); window.history.replaceState({}, '', REDIRECT_URI); return false; }
       const verifier = sessionStorage.getItem('pkce_verifier') || localStorage.getItem('pkce_verifier');
-      if (!verifier) { toast('Auth error — session lost. Please try logging in again.'); window.history.replaceState({}, '', REDIRECT_URI); return false; }
+      if (!verifier) { dbg('CALLBACK: no PKCE verifier found'); toast('Auth error — session lost. Please try logging in again.'); window.history.replaceState({}, '', REDIRECT_URI); return false; }
+      dbg('CALLBACK: exchanging code for token');
       const res = await fetch('https://accounts.spotify.com/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -654,6 +663,7 @@
         }),
       });
       const data = await res.json();
+      dbg(`CALLBACK: token response status=${res.status}, hasAccessToken=${!!data.access_token}, error=${data.error || 'none'}, errorDesc=${data.error_description || 'none'}`);
       // Clean up PKCE state
       sessionStorage.removeItem('pkce_verifier');
       sessionStorage.removeItem('oauth_state');
@@ -664,23 +674,27 @@
         localStorage.setItem('spotify_token', accessToken);
         localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
         if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+        dbg(`CALLBACK: token stored, expires_in=${data.expires_in}s`);
         window.history.replaceState({}, '', REDIRECT_URI);
         return true;
       }
+      dbg('CALLBACK: token exchange failed');
       toast('Login failed — please try again.');
       window.history.replaceState({}, '', REDIRECT_URI);
       return false;
     }
 
     async function refreshToken() {
+      dbg('REFRESH: attempting token refresh');
       const rt = localStorage.getItem('spotify_refresh_token');
-      if (!rt) return false;
+      if (!rt) { dbg('REFRESH: no refresh token stored'); return false; }
       const res = await fetch('https://accounts.spotify.com/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: rt, client_id: CLIENT_ID }),
       });
       const data = await res.json();
+      dbg(`REFRESH: status=${res.status}, hasAccessToken=${!!data.access_token}, error=${data.error || 'none'}`);
       if (data.access_token) {
         accessToken = data.access_token;
         localStorage.setItem('spotify_token', accessToken);
@@ -692,6 +706,7 @@
     }
 
     function resetToLogin(msg) {
+      dbg(`RESET: clearing auth state, reason="${msg || 'none'}"`);
       accessToken = null;
       localStorage.removeItem('spotify_token');
       localStorage.removeItem('spotify_token_expires');
@@ -713,7 +728,11 @@
         ...opts,
         headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) },
       });
+      if (res.status !== 200 && res.status !== 201 && res.status !== 204) {
+        dbg(`API: ${opts.method || 'GET'} ${path} → ${res.status}`);
+      }
       if (res.status === 401) {
+        dbg(`API: 401 on ${path}, refreshingAuth=${_refreshingAuth}`);
         if (!_refreshingAuth) {
           _refreshingAuth = true;
           const refreshed = await refreshToken();
@@ -1328,7 +1347,7 @@ IMPORTANT: Only output the JSON object, nothing else.`
     // ---- Blindspots ----
     // LLM-powered: sends taste profile to AI, gets artist suggestions, searches Spotify
     async function findBlindspots() {
-      _debugLog.length = 0;
+      dbg('---');
       dbg('BLINDSPOTS: start');
       const result = document.getElementById('blindspot-result');
       result.style.display = 'block';
@@ -1499,7 +1518,7 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
     // ---- Discover Infinitely ----
     // LLM-powered: AI suggests tracks based on taste, Spotify searches verify them
     async function discoverInfinitely(count = 50) {
-      _debugLog.length = 0;
+      dbg('---');
       dbg(`DISCOVER: start, count=${count}`);
       const result = document.getElementById('discover-result');
       result.style.display = 'block';
@@ -1835,14 +1854,19 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
 
     // ---- Init ----
     async function init() {
+      dbg(`INIT: start, hasCode=${window.location.search.includes('code=')}, hasToken=${!!localStorage.getItem('spotify_token')}, hasRefresh=${!!localStorage.getItem('spotify_refresh_token')}`);
+      const tokenExpires = localStorage.getItem('spotify_token_expires');
+      dbg(`INIT: tokenExpired=${tokenExpires ? Date.now() > Number(tokenExpires) : 'no-token'}, now=${Date.now()}, expires=${tokenExpires || 'none'}`);
       if (window.location.search.includes('code=')) await handleCallback();
       const stored = localStorage.getItem('spotify_token');
       const expires = localStorage.getItem('spotify_token_expires');
       if (stored && expires && Date.now() < Number(expires)) accessToken = stored;
       else if (localStorage.getItem('spotify_refresh_token')) await refreshToken();
+      dbg(`INIT: accessToken=${accessToken ? 'set (' + accessToken.slice(0,8) + '...)' : 'null'}`);
 
       if (accessToken) {
         const me = await spotifyApi('/me');
+        dbg(`INIT: /me response=${JSON.stringify(me ? {id: me.id, error: me.error, display_name: me.display_name} : null)}`);
         if (!me || me.error || !me.id) {
           console.warn('Failed to fetch user profile:', me?.error || 'no data');
           resetToLogin('Session expired — please log in again.');
@@ -1864,11 +1888,8 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       }
     }
 
-    // ---- Debug log ----
-    const _debugLog = [];
-    function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
     function copyDebugLog() {
-      if (_debugLog.length === 0) { toast('Debug log is empty — run a discovery tool first'); return; }
+      if (_debugLog.length === 0) { toast('Debug log is empty'); return; }
       const text = _debugLog.join('\n');
       const ta = document.createElement('textarea');
       ta.value = text;
