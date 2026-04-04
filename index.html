@@ -508,7 +508,7 @@
     const SCOPES = [
       'user-read-private', 'user-read-email',
       'playlist-modify-public', 'playlist-modify-private', 'playlist-read-private',
-      'user-top-read', 'user-library-read',
+      'user-top-read', 'user-library-read', 'user-read-recently-played',
     ].join(' ');
     const SPOTIFY_API = 'https://api.spotify.com/v1';
 
@@ -1816,7 +1816,12 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
 
       if (accessToken) {
         const me = await spotifyApi('/me');
-        if (!me) return;
+        if (!me || me.error || !me.id) {
+          // Token is invalid or API failed — force re-auth
+          console.warn('Failed to fetch user profile:', me?.error || 'no data');
+          logout();
+          return;
+        }
         userId = me.id;
         document.getElementById('landing').style.display = 'none';
         document.getElementById('app').classList.add('active');
@@ -1837,7 +1842,19 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
     const _debugLog = [];
     function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
     function copyDebugLog() {
-      navigator.clipboard.writeText(_debugLog.join('\n')).then(() => toast('Debug log copied!'));
+      const text = _debugLog.join('\n');
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast('Debug log copied!')).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Debug log copied!'); } catch { toast('Copy failed — check browser permissions'); }
+      document.body.removeChild(ta);
     }
 
     function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2500); }
