@@ -1829,9 +1829,14 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       if (accessToken) {
         const me = await spotifyApi('/me');
         if (!me || me.error || !me.id) {
-          // Token is invalid or API failed — force re-auth
+          // Token is invalid or API failed — clear tokens and show login
           console.warn('Failed to fetch user profile:', me?.error || 'no data');
-          logout();
+          accessToken = null;
+          localStorage.removeItem('spotify_token');
+          localStorage.removeItem('spotify_token_expires');
+          localStorage.removeItem('spotify_refresh_token');
+          toast('Session expired — please log in again.');
+          document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
           return;
         }
         userId = me.id;
@@ -1854,19 +1859,24 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
     const _debugLog = [];
     function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
     function copyDebugLog() {
+      if (_debugLog.length === 0) { toast('Debug log is empty — run a discovery tool first'); return; }
       const text = _debugLog.join('\n');
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(text).then(() => toast('Debug log copied!')).catch(() => fallbackCopy(text));
-      } else {
-        fallbackCopy(text);
-      }
-    }
-    function fallbackCopy(text) {
       const ta = document.createElement('textarea');
-      ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); toast('Debug log copied!'); } catch { toast('Copy failed — check browser permissions'); }
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { console.warn('copy failed', e); }
       document.body.removeChild(ta);
+      if (ok) {
+        toast('Debug log copied!');
+      } else if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast('Debug log copied!')).catch(() => toast('Copy failed — try Ctrl+C'));
+      } else {
+        toast('Copy failed — check browser permissions');
+      }
     }
 
     function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2500); }
