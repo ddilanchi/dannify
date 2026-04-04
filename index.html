@@ -1452,15 +1452,9 @@ IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. 
         for (const name of suggestedArtists.slice(0, 60)) {
           if (knownArtistNames.has(name.toLowerCase())) { filteredByKnown++; continue; }
 
-          // Find the artist on Spotify first
-          const artistResult = await spotifyApi(`/search?q=${encodeURIComponent(name)}&type=artist&limit=1`);
-          const artist = artistResult?.artists?.items?.[0];
-          if (!artist) { spotifyMisses++; continue; }
-          if (knownArtistNames.has(artist.name.toLowerCase())) { filteredByKnown++; continue; }
-
-          // Fetch their top tracks (most popular) instead of random search results
-          const topTracksResult = await spotifyApi(`/artists/${artist.id}/top-tracks?market=US`);
-          const tracks = (topTracksResult?.tracks || []).slice(0, 5);
+          // Search for top tracks by this artist (search results are sorted by popularity)
+          const trackResult = await spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=5&market=US`);
+          const tracks = trackResult?.tracks?.items || [];
           if (tracks.length === 0) spotifyMisses++;
           for (const t of tracks) {
             const trackKey = (t.name + ' ' + (t.artists[0]?.name || '')).toLowerCase();
