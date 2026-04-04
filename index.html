@@ -1734,6 +1734,7 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
 
       const data = await spotifyApi('/me/playlists?limit=50');
       const playlists = data?.items || [];
+      dbg(`LIBRARY: loaded ${playlists.length} playlists, first=${JSON.stringify(playlists[0] ? {name: playlists[0].name, tracks: playlists[0].tracks, owner: playlists[0].owner?.id} : null)}`);
       cachedPlaylists = playlists;
       libraryLoaded = true;
 
