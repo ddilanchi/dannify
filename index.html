@@ -691,28 +691,36 @@
       return false;
     }
 
-    function logout() {
+    function resetToLogin(msg) {
       accessToken = null;
       localStorage.removeItem('spotify_token');
       localStorage.removeItem('spotify_token_expires');
       localStorage.removeItem('spotify_refresh_token');
+      document.getElementById('app').classList.remove('active');
+      document.getElementById('landing').style.display = '';
+      document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
+      if (msg) toast(msg);
+    }
+
+    function logout() {
+      resetToLogin();
       location.reload();
     }
 
+    let _refreshingAuth = false;
     async function spotifyApi(path, opts = {}, _retries = 0) {
       const res = await fetch(SPOTIFY_API + path, {
         ...opts,
         headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) },
       });
       if (res.status === 401) {
-        if (await refreshToken()) return spotifyApi(path, opts);
-        // Refresh failed — clear tokens without reloading to avoid loops
-        accessToken = null;
-        localStorage.removeItem('spotify_token');
-        localStorage.removeItem('spotify_token_expires');
-        localStorage.removeItem('spotify_refresh_token');
-        toast('Session expired — please log in again.');
-        document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
+        if (!_refreshingAuth) {
+          _refreshingAuth = true;
+          const refreshed = await refreshToken();
+          _refreshingAuth = false;
+          if (refreshed) return spotifyApi(path, opts);
+        }
+        resetToLogin('Session expired — please log in again.');
         return null;
       }
       if (res.status === 429 && _retries < 3) {
@@ -1836,14 +1844,8 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       if (accessToken) {
         const me = await spotifyApi('/me');
         if (!me || me.error || !me.id) {
-          // Token is invalid or API failed — clear tokens and show login
           console.warn('Failed to fetch user profile:', me?.error || 'no data');
-          accessToken = null;
-          localStorage.removeItem('spotify_token');
-          localStorage.removeItem('spotify_token_expires');
-          localStorage.removeItem('spotify_refresh_token');
-          toast('Session expired — please log in again.');
-          document.getElementById('user-area').innerHTML = `<button class="btn btn-green btn-sm" onclick="login()">Log in</button>`;
+          resetToLogin('Session expired — please log in again.');
           return;
         }
         userId = me.id;
