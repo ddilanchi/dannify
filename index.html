@@ -565,7 +565,7 @@
     function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
 
     // ---- Config ----
-    const VERSION = '2.0.0';
+    const VERSION = '2.0.1';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -816,13 +816,26 @@
     }
 
     // ---- Fetch all tracks from a playlist (handles pagination) ----
+    // Track count from a playlist summary object. The Feb 2026 migration may
+    // expose the count under `items.total` instead of the legacy `tracks.total`.
+    function playlistTrackCount(p) {
+      return p?.tracks?.total ?? p?.items?.total ?? 0;
+    }
+
     async function fetchAllPlaylistTracks(playlistId) {
       let tracks = [];
       let url = `/playlists/${playlistId}/items?limit=100`;
+      let logged = false;
       while (url) {
         const data = await spotifyApi(url);
         if (!data?.items) break;
-        tracks = tracks.concat(data.items.filter(i => i.track));
+        if (!logged) { dbg(`PLAYLIST-ITEMS: first entry keys=${data.items[0] ? Object.keys(data.items[0]).join(',') : 'none'}`); logged = true; }
+        // Feb 2026 migration: /items returns each entry as `item` (was `track`).
+        // Normalize so downstream code can keep using entry.track.
+        const normalized = data.items
+          .map(i => ({ ...i, track: i.item || i.track }))
+          .filter(x => x.track);
+        tracks = tracks.concat(normalized);
         url = data.next ? data.next.replace(SPOTIFY_API, '') : null;
       }
       return tracks;
@@ -839,7 +852,7 @@
 
       let summary = '';
       if (playlists?.items?.length)
-        summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${p.tracks?.total || 0} tracks)`).join('\n') + '\n\n';
+        summary += 'USER PLAYLISTS:\n' + playlists.items.map(p => `- ${p.name} (${playlistTrackCount(p)} tracks)`).join('\n') + '\n\n';
       if (topArtists?.items?.length)
         summary += 'TOP ARTISTS:\n' + topArtists.items.map(a => `- ${a.name} (${(a.genres || []).slice(0,3).join(', ') || 'no genre'})`).join('\n') + '\n\n';
       if (topTracks?.items?.length)
@@ -856,7 +869,7 @@
         cachedPlaylists = data?.items || [];
       }
       const opts = '<option value="">Select playlist...</option>' +
-        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
+        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${playlistTrackCount(p)})</option>`).join('');
       ['ai-edit-playlist'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = opts;
@@ -1160,7 +1173,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
       cachedPlaylists = data.items || [];
       const select = document.getElementById('playlist-select');
       select.innerHTML = '<option value="">Select a playlist...</option>' +
-        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${p.tracks?.total || 0})</option>`).join('');
+        cachedPlaylists.map(p => `<option value="${p.id}">${esc(p.name)} (${playlistTrackCount(p)})</option>`).join('');
     }
 
     async function createPlaylist() {
@@ -1721,7 +1734,8 @@ Respond with ONLY a valid JSON array: [{"track": "Song Name", "artist": "Artist 
 
       const data = await spotifyApi('/me/playlists?limit=50');
       const playlists = data?.items || [];
-      dbg(`LIBRARY: loaded ${playlists.length} playlists, first=${JSON.stringify(playlists[0] ? {name: playlists[0].name, tracks: playlists[0].tracks, owner: playlists[0].owner?.id} : null)}`);
+      dbg(`LIBRARY: loaded ${playlists.length} playlists, first keys=${playlists[0] ? Object.keys(playlists[0]).join(',') : 'none'}`);
+      dbg(`LIBRARY: first.tracks=${JSON.stringify(playlists[0]?.tracks)}, first.items=${JSON.stringify(playlists[0]?.items)}`);
       cachedPlaylists = playlists;
       libraryLoaded = true;
 
@@ -1741,7 +1755,7 @@ Respond with ONLY a valid JSON array: [{"track": "Song Name", "artist": "Artist 
           ${isOwner ? `<button class="lc-delete" title="Delete playlist" onclick="event.stopPropagation(); deletePlaylistById('${p.id}', '${esc(p.name).replace(/'/g, "\\'")}')">&#10005;</button>` : ''}
           <img src="${img}" alt="" ${!img ? 'style="background:#282828;"' : ''}>
           <div class="lc-name">${esc(p.name)}</div>
-          <div class="lc-meta">${p.tracks?.total || 0} tracks${owner ? ' · ' + esc(owner) : ''}</div>
+          <div class="lc-meta">${playlistTrackCount(p)} tracks${owner ? ' · ' + esc(owner) : ''}</div>
         </div>`;
       }).join('') + '</div>';
     }
@@ -1762,7 +1776,7 @@ Respond with ONLY a valid JSON array: [{"track": "Song Name", "artist": "Artist 
       const descEl = document.getElementById('lib-detail-desc');
       descEl.textContent = pl.description || '';
       descEl.contentEditable = 'false';
-      document.getElementById('lib-detail-meta').textContent = `${pl.tracks?.total || 0} tracks · ${pl.owner?.display_name || ''}`;
+      document.getElementById('lib-detail-meta').textContent = `${playlistTrackCount(pl)} tracks · ${pl.owner?.display_name || ''}`;
 
       const isOwner = pl.owner?.id === userId;
       const isEditable = isOwner || pl.collaborative;
