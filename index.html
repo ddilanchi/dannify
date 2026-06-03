@@ -200,9 +200,8 @@
     .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
     .library-card {
       background: #1a1a1a; border-radius: 10px; padding: 14px; cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s, transform 0.1s; position: relative;
     }
-    .library-card { position: relative; }
     .library-card:hover { background: #252525; transform: scale(1.02); }
     .library-card .lc-delete {
       position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
@@ -244,6 +243,50 @@
     }
     .library-track:hover .lt-remove { opacity: 1; }
     .library-track .lt-remove:hover { color: #e74c3c; }
+
+    .library-track .lt-check { width: 16px; height: 16px; accent-color: #1db954; cursor: pointer; flex-shrink: 0; }
+    .library-track .lt-move {
+      color: #535353; cursor: pointer; font-size: 14px; padding: 2px 4px;
+      opacity: 0; transition: opacity 0.15s; flex-shrink: 0;
+    }
+    .library-track:hover .lt-move { opacity: 1; }
+    .library-track .lt-move:hover { color: #1db954; }
+
+    .lib-edit-bar {
+      display: flex; gap: 8px; padding: 8px 24px; border-bottom: 1px solid #282828;
+      flex-shrink: 0; flex-wrap: wrap; align-items: center;
+    }
+
+    .lib-search-row {
+      display: flex; gap: 8px; padding: 8px 24px; border-bottom: 1px solid #282828; flex-shrink: 0;
+    }
+    .lib-search-row input {
+      flex: 1; padding: 8px 14px; border-radius: 8px; border: none;
+      background: #282828; color: #fff; font-size: 13px; outline: none;
+    }
+    .lib-search-results {
+      max-height: 200px; overflow-y: auto; padding: 0 24px;
+      border-bottom: 1px solid #282828;
+    }
+    .lib-search-results:empty { display: none; }
+    .lib-search-results .search-track {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s;
+    }
+    .lib-search-results .search-track:hover { background: #1a1a1a; }
+    .lib-search-results .search-track img { width: 32px; height: 32px; border-radius: 4px; }
+    .lib-search-results .search-track .st-info { flex: 1; min-width: 0; }
+    .lib-search-results .search-track .st-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lib-search-results .search-track .st-artist { font-size: 11px; color: #b3b3b3; }
+    .lib-search-results .search-track .st-add { color: #1db954; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+
+    .ldh-name[contenteditable] { outline: none; border-bottom: 1px dashed #535353; cursor: text; }
+    .ldh-name[contenteditable]:focus { border-bottom-color: #1db954; }
+    .ldh-desc {
+      color: #727272; font-size: 12px; margin-top: 4px; outline: none;
+      border-bottom: 1px dashed transparent; cursor: text;
+    }
+    .ldh-desc:focus { border-bottom-color: #1db954; color: #b3b3b3; }
 
     .tool-result {
       background: #121212; border-radius: 8px; padding: 16px; margin-top: 12px;
@@ -394,13 +437,25 @@
             <img id="lib-detail-img" src="" alt="">
             <div class="ldh-info">
               <div class="ldh-name" id="lib-detail-name"></div>
+              <div class="ldh-desc" id="lib-detail-desc" contenteditable="false" data-placeholder="Add a description..."></div>
               <div class="ldh-meta" id="lib-detail-meta"></div>
             </div>
             <div class="ldh-actions">
               <button class="btn btn-outline btn-sm" onclick="closeLibraryDetail()">&larr; Back</button>
-              <button class="btn btn-red btn-sm" id="lib-delete-btn" onclick="deletePlaylist()">Delete Playlist</button>
+              <button class="btn btn-red btn-sm" id="lib-delete-btn" onclick="deletePlaylist()">Delete</button>
             </div>
           </div>
+          <div class="lib-edit-bar" id="lib-edit-bar" style="display:none;">
+            <button class="btn btn-outline btn-sm" onclick="libSelectAll()">Select all</button>
+            <button class="btn btn-outline btn-sm" onclick="libSelectNone()">Select none</button>
+            <button class="btn btn-red btn-sm" onclick="libRemoveSelected()">Remove selected</button>
+            <button class="btn btn-outline btn-sm" onclick="libDeduplicateTracks()">Deduplicate</button>
+          </div>
+          <div class="lib-search-row" id="lib-search-row" style="display:none;">
+            <input type="text" id="lib-search-input" placeholder="Search tracks to add..." autocomplete="off">
+            <button class="btn btn-green btn-sm" onclick="libSearchTracks()">Search</button>
+          </div>
+          <div class="lib-search-results" id="lib-search-results"></div>
           <div class="library-tracklist" id="lib-detail-tracks"></div>
         </div>
       </div>
@@ -408,6 +463,31 @@
       <!-- Tools tab -->
       <div class="tab-content" id="tab-tools">
         <div class="tools-panel">
+
+          <!-- Unified Generate Playlist -->
+          <div class="tool-card">
+            <h3>Generate Playlist</h3>
+            <p class="tool-desc">AI-powered playlist generation based on your taste</p>
+            <div style="display:flex; gap:8px; margin-bottom:8px;">
+              <select id="gen-mode" onchange="toggleGenPrompt()">
+                <option value="new-artists">New Artists — unknown artists based on your taste</option>
+                <option value="new-tracks">New Tracks — specific songs you haven't heard</option>
+                <option value="from-prompt">From a Prompt — describe a vibe or theme</option>
+              </select>
+              <select id="gen-count" style="width:100px;">
+                <option value="25">25 tracks</option>
+                <option value="50" selected>50 tracks</option>
+                <option value="100">100 tracks</option>
+              </select>
+            </div>
+            <div id="gen-prompt-row" class="search-input-row" style="display:none;">
+              <input type="text" id="gen-prompt" placeholder='e.g. "90s trip-hop meets ambient", "upbeat summer road trip"...' autocomplete="off">
+            </div>
+            <div class="tool-actions">
+              <button class="btn btn-green btn-sm" onclick="generatePlaylist()">Generate</button>
+            </div>
+            <div class="tool-result" id="gen-result" style="display:none;"></div>
+          </div>
 
           <!-- AI Playlist Editor -->
           <div class="tool-card">
@@ -419,27 +499,6 @@
               <button class="btn btn-green btn-sm" onclick="aiEditPlaylist()">Go</button>
             </div>
             <div class="tool-result" id="ai-edit-result" style="display:none;"></div>
-          </div>
-
-          <!-- Blindspots -->
-          <div class="tool-card">
-            <h3>Blindspots</h3>
-            <p class="tool-desc">Tracks from artists you've never explored — based on what you already love</p>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="findBlindspots()">Find my blindspots</button>
-            </div>
-            <div class="tool-result" id="blindspot-result" style="display:none;"></div>
-          </div>
-
-          <!-- Discover Infinitely -->
-          <div class="tool-card">
-            <h3>Discover Infinitely</h3>
-            <p class="tool-desc">Never-ending recommendations based on your taste (like Discover Weekly, but infinite)</p>
-            <div class="tool-actions">
-              <button class="btn btn-green btn-sm" onclick="discoverInfinitely()">Generate 50 tracks</button>
-              <button class="btn btn-outline btn-sm" onclick="discoverInfinitely(100)">100 tracks</button>
-            </div>
-            <div class="tool-result" id="discover-result" style="display:none;"></div>
           </div>
 
         </div>
@@ -506,7 +565,7 @@
     function dbg(msg) { const ts = new Date().toISOString().slice(11,23); _debugLog.push(`[${ts}] ${msg}`); console.log(`[dbg] ${msg}`); }
 
     // ---- Config ----
-    const VERSION = '1.9.0';
+    const VERSION = '2.0.0';
     const CLIENT_ID = 'f102cf4f96c24a0ab956ca994f8db0f4';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = [
@@ -1060,6 +1119,7 @@ You can include a brief intro sentence but keep text minimal — the tracks are 
 
     document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
     document.getElementById('ai-edit-prompt').addEventListener('keydown', e => { if (e.key === 'Enter') aiEditPlaylist(); });
+    document.getElementById('gen-prompt')?.addEventListener('keydown', e => { if (e.key === 'Enter') generatePlaylist(); });
 
     // ---- Staging ----
     function stageFromSuggestion(el) {
@@ -1282,7 +1342,7 @@ IMPORTANT: Only output the JSON object, nothing else.`
         if (plan.action === 'remove' || plan.action === 'replace') {
           const toRemove = (plan.remove_uris || []).map(uri => ({ uri }));
           for (let i = 0; i < toRemove.length; i += 100) {
-            await spotifyApi(`/playlists/${playlistId}/tracks`, {
+            await spotifyApi(`/playlists/${playlistId}/items`, {
               method: 'DELETE',
               body: JSON.stringify({ tracks: toRemove.slice(i, i + 100) }),
             });
@@ -1344,377 +1404,310 @@ IMPORTANT: Only output the JSON object, nothing else.`
       }
     }
 
-    // ---- Blindspots ----
-    // LLM-powered: sends taste profile to AI, gets artist suggestions, searches Spotify
-    async function findBlindspots() {
-      dbg('---');
-      dbg('BLINDSPOTS: start');
-      const result = document.getElementById('blindspot-result');
+    // ---- Generate Playlist (unified discovery) ----
+    function toggleGenPrompt() {
+      document.getElementById('gen-prompt-row').style.display = document.getElementById('gen-mode').value === 'from-prompt' ? '' : 'none';
+    }
+
+    async function fetchTasteProfile(resultEl) {
+      resultEl.innerHTML = '<div class="typing"><div class="spinner"></div>Loading your liked songs...</div>';
+      const savedItems = await fetchAllSavedTracks((n, total) => {
+        resultEl.innerHTML = `<div class="typing"><div class="spinner"></div>Loading liked songs... ${n}/${total}</div>`;
+      });
+      dbg(`TASTE: fetched ${savedItems.length} saved tracks`);
+
+      resultEl.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste...</div>';
+      const [topArtistsLong, topArtistsMed, topArtistsShort, topTracksLong, topTracksMed, topTracksShort, recentlyPlayed] = await Promise.all([
+        spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
+        spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
+        spotifyApi('/me/top/artists?limit=50&time_range=short_term'),
+        spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
+        spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
+        spotifyApi('/me/top/tracks?limit=50&time_range=short_term'),
+        spotifyApi('/me/player/recently-played?limit=50'),
+      ]);
+
+      const topArtists = topArtistsLong?.items || [];
+      const knownArtists = new Set();
+      const knownTracks = new Set();
+
+      const addArtists = items => (items || []).forEach(a => knownArtists.add(a.name.toLowerCase()));
+      const addTrackData = items => (items || []).forEach(t => {
+        knownTracks.add((t.name + ' ' + (t.artists?.[0]?.name || '')).toLowerCase());
+        (t.artists || []).forEach(a => knownArtists.add(a.name.toLowerCase()));
+      });
+
+      addArtists(topArtists);
+      addArtists(topArtistsMed?.items);
+      addArtists(topArtistsShort?.items);
+      addTrackData(topTracksLong?.items);
+      addTrackData(topTracksMed?.items);
+      addTrackData(topTracksShort?.items);
+      savedItems.forEach(i => {
+        if (!i.track) return;
+        knownTracks.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
+        (i.track.artists || []).forEach(a => knownArtists.add(a.name.toLowerCase()));
+      });
+      (recentlyPlayed?.items || []).forEach(i => {
+        if (!i.track) return;
+        knownTracks.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
+        (i.track.artists || []).forEach(a => knownArtists.add(a.name.toLowerCase()));
+      });
+
+      const artistList = topArtists.map(a => `${a.name} (${(a.genres || []).slice(0, 3).join(', ')})`).join(', ');
+      const trackList = (topTracksLong?.items || []).slice(0, 20).map(t => `"${t.name}" by ${t.artists[0]?.name}`).join(', ');
+      const knownList = [...knownArtists].slice(0, 100).join(', ');
+
+      return { topArtists, knownArtists, knownTracks, artistList, trackList, knownList };
+    }
+
+    function renderGeneratedTracks(tracks, resultEl) {
+      if (!tracks.length) {
+        resultEl.innerHTML = '<p>No results found. Try again for different suggestions.</p>';
+        return;
+      }
+      let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Generated ${tracks.length} tracks</p>`;
+      html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">AI-curated &middot; click + to stage</p>`;
+      html += `<div style="margin:8px 0 12px;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('gen-result', 'Dannify Generate')">Save all as playlist</button></div>`;
+      html += tracks.map(t => {
+        const uri = `spotify:track:${t.id}`;
+        const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+        const isStaged = stagedTracks.some(s => s.uri === uri);
+        return `
+        <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${uri}" data-name="${esc(t.name)}" data-artist="${esc(t.artists[0]?.name || '')}" data-img="${img}" onclick="stageFromSuggestion(this)">
+          <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
+          <div class="dupe-info">
+            <div class="dupe-name">${esc(t.name)}</div>
+            <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')}</div>
+          </div>
+          <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
+        </div>`;
+      }).join('');
+      resultEl.innerHTML = html;
+    }
+
+    async function searchTrackOnSpotify(trackName, artistName) {
+      let q = encodeURIComponent(`track:${trackName} artist:${artistName}`);
+      let data = await spotifyApi(`/search?q=${q}&type=track&limit=3&market=US`);
+      let tracks = data?.tracks?.items || [];
+      if (tracks.length === 0) {
+        q = encodeURIComponent(`${trackName} ${artistName}`);
+        data = await spotifyApi(`/search?q=${q}&type=track&limit=5&market=US`);
+        tracks = data?.tracks?.items || [];
+      }
+      return tracks.find(t =>
+        t.name.toLowerCase().includes(trackName.toLowerCase().slice(0, 10)) ||
+        t.artists.some(a => a.name.toLowerCase().includes(artistName.toLowerCase().slice(0, 8)))
+      ) || tracks[0] || null;
+    }
+
+    function parseJsonArray(text) {
+      try {
+        const m = text.match(/\[[\s\S]*\]/);
+        if (m) return JSON.parse(m[0]);
+      } catch (e) {
+        dbg(`JSON parse failed: ${e.message}, trying fallback`);
+        try { return JSON.parse(text.replace(/```json?\s*/g, '').replace(/```/g, '').trim()); } catch (e2) { /* fall through */ }
+      }
+      return null;
+    }
+
+    async function generatePlaylist() {
+      const mode = document.getElementById('gen-mode').value;
+      const count = parseInt(document.getElementById('gen-count').value, 10);
+      const result = document.getElementById('gen-result');
       result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
+      dbg('---');
+      dbg(`GENERATE: mode=${mode}, count=${count}`);
 
       try {
         const apiKey = localStorage.getItem('llm_api_key');
-        if (!apiKey) {
-          dbg('BLINDSPOTS: no API key');
-          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
-          return;
-        }
+        if (!apiKey) { result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>'; return; }
 
-        dbg('BLINDSPOTS: fetching spotify data');
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Loading your liked songs...</div>';
-        // Fetch all liked songs to build a thorough exclusion list
-        const savedItems = await fetchAllSavedTracks((n, total) => {
-          result.innerHTML = `<div class="typing"><div class="spinner"></div>Loading liked songs... ${n}/${total}</div>`;
-        });
-        dbg(`BLINDSPOTS: fetched ${savedItems.length} saved tracks`);
+        const taste = await fetchTasteProfile(result);
+        if (!taste.topArtists.length) { result.innerHTML = '<p style="color:#ff4444;">Not enough listening data yet!</p>'; return; }
 
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Analyzing your taste profile...</div>';
-        const [topArtistsLong, topArtistsMed, topTracksLong, topTracksMed] = await Promise.all([
-          spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
-          spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
-          spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
-          spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
-        ]);
+        dbg(`GENERATE: known artists=${taste.knownArtists.size}, known tracks=${taste.knownTracks.size}`);
 
-        const topItems = topArtistsLong?.items || [];
-        if (topItems.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No top artists found. Listen to more music first!</p>';
-          return;
-        }
-
-        // Build comprehensive known artist set
-        const knownArtistNames = new Set();
-        const addArtists = (items) => (items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        const addTrackArtists = (items) => (items || []).forEach(t => (t.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase())));
-        addArtists(topItems);
-        addArtists(topArtistsMed?.items);
-        addTrackArtists(topTracksLong?.items);
-        addTrackArtists(topTracksMed?.items);
-        const knownTrackKeys = new Set();
-        savedItems.forEach(i => {
-          (i.track?.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-          if (i.track) knownTrackKeys.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
-        });
-
-        // Build taste profile for LLM
-        const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,3).join(', ')})`).join(', ');
-        const trackList = (topTracksLong?.items || []).slice(0, 20).map(t => `${t.name} by ${t.artists[0]?.name}`).join(', ');
-        const knownList = [...knownArtistNames].slice(0, 100).join(', ');
-
-        dbg(`BLINDSPOTS: known artists=${knownArtistNames.size}, top artists=${topItems.length}`);
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Asking AI for recommendations...</div>';
-
-        // Ask LLM for artist recommendations — request 60 to have plenty after filtering
-        const llmResponse = await callLLM([{
-          role: 'user',
-          content: `I need music recommendations. Here are my top artists: ${artistList}
-
-Some of my top tracks: ${trackList}
-
-Here are artists I ALREADY know and listen to (do NOT suggest any of these): ${knownList}
-
-Suggest exactly 60 artists I probably HAVEN'T heard of. Requirements:
-- NONE of the artists I listed above — I already know them
-- Avoid the most popular/mainstream artists in those genres (I've probably heard them)
-- Focus on lesser-known, underground, underrated, or international artists
-- Artists who make music adjacent to my taste but from unexpected angles, different scenes, or different eras
-- Include artists from outside the US/UK where relevant
-- Every artist must actually exist on Spotify
-- Be creative and surprising — dig deep
-
-IMPORTANT: Respond with ONLY a valid JSON array of artist names, no other text. Example: ["Artist One", "Artist Two"]`
-        }]);
-
-        dbg(`BLINDSPOTS: LLM response length=${llmResponse.length}, first 200 chars: ${llmResponse.slice(0, 200)}`);
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for suggestions...</div>';
-
-        // Parse LLM response
-        let suggestedArtists = [];
-        try {
-          const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
-          dbg(`BLINDSPOTS: JSON match found=${!!jsonMatch}, match length=${jsonMatch?.[0]?.length || 0}`);
-          if (jsonMatch) suggestedArtists = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          dbg(`BLINDSPOTS: JSON parse failed: ${e.message}`);
-          result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>';
-          return;
-        }
-
-        dbg(`BLINDSPOTS: parsed ${suggestedArtists.length} artists from LLM`);
-
-        // Search Spotify for each suggested artist — grab their top tracks
-        const foundTracks = [];
-        const seenTrackIds = new Set();
-        let filteredByKnown = 0;
-        let spotifyMisses = 0;
-
-        for (const name of suggestedArtists.slice(0, 60)) {
-          if (knownArtistNames.has(name.toLowerCase())) { filteredByKnown++; continue; }
-
-          // Search for top tracks by this artist (search results are sorted by popularity)
-          const trackResult = await spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=5&market=US`);
-          const tracks = trackResult?.tracks?.items || [];
-          if (tracks.length === 0) spotifyMisses++;
-          for (const t of tracks) {
-            const trackKey = (t.name + ' ' + (t.artists[0]?.name || '')).toLowerCase();
-            if (!knownArtistNames.has(t.artists[0]?.name?.toLowerCase()) && !seenTrackIds.has(t.id) && !knownTrackKeys.has(trackKey)) {
-              seenTrackIds.add(t.id);
-              foundTracks.push(t);
-            }
-          }
-        }
-
-        dbg(`BLINDSPOTS: filteredByKnown=${filteredByKnown}, spotifyMisses=${spotifyMisses}, foundTracks=${foundTracks.length}`);
-
-        // Shuffle so same-artist tracks aren't clustered together
-        for (let i = foundTracks.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [foundTracks[i], foundTracks[j]] = [foundTracks[j], foundTracks[i]];
-        }
-
-        // Build results — just tracks, no artist cards
-        let html = '';
-
-        if (foundTracks.length) {
-          html += `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Blindspot tracks (${foundTracks.length})</p>`;
-          html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:8px;">AI-curated from ${suggestedArtists.length} artists you probably haven't heard &middot; filtered out ${knownArtistNames.size} you already know</p>`;
-          html += `<div style="margin:8px 0 12px;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('blindspot-result', 'Dannify Blindspots')">Save all as playlist</button></div>`;
-          html += foundTracks.map(t => {
-            const uri = `spotify:track:${t.id}`;
-            const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
-            const isStaged = stagedTracks.some(s => s.uri === uri);
-            return `
-            <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${uri}" data-name="${esc(t.name)}" data-artist="${esc(t.artists[0]?.name || '')}" data-img="${img}" onclick="stageFromSuggestion(this)">
-              <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
-              <div class="dupe-info">
-                <div class="dupe-name">${esc(t.name)}</div>
-                <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')}</div>
-              </div>
-              <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
-            </div>`;
-          }).join('');
-        }
-
-
-        if (!html) html = '<p>No results found. Try again for different suggestions.</p>';
-        result.innerHTML = html;
-
-      } catch (err) {
-        if (err.message === 'NO_KEY') {
-          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
+        if (mode === 'new-artists') {
+          await generateNewArtists(count, taste, result);
+        } else if (mode === 'new-tracks') {
+          await generateNewTracks(count, taste, result);
         } else {
-          result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+          const prompt = document.getElementById('gen-prompt').value.trim();
+          if (!prompt) { result.innerHTML = '<p style="color:#ff4444;">Enter a vibe or theme first.</p>'; return; }
+          await generateFromPrompt(count, taste, prompt, result);
         }
+      } catch (err) {
+        if (err.message === 'NO_KEY') { result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>'; }
+        else { result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`; }
       }
     }
 
-    // ---- Discover Infinitely ----
-    // LLM-powered: AI suggests tracks based on taste, Spotify searches verify them
-    async function discoverInfinitely(count = 50) {
-      dbg('---');
-      dbg(`DISCOVER: start, count=${count}`);
-      const result = document.getElementById('discover-result');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
+    async function generateNewArtists(count, taste, result) {
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Asking AI for artist recommendations...</div>';
+      const artistCount = Math.min(Math.ceil(count / 3) + 10, 80);
 
-      try {
-        const apiKey = localStorage.getItem('llm_api_key');
-        if (!apiKey) {
-          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
-          return;
+      const llmResponse = await callLLM([{ role: 'user', content: `I need music recommendations. Here are my top artists: ${taste.artistList}
+
+Some of my top tracks: ${taste.trackList}
+
+Artists I ALREADY know (do NOT suggest any of these): ${taste.knownList}
+
+Suggest exactly ${artistCount} artists I probably HAVEN'T heard of. Requirements:
+- NONE of the artists I listed above
+- Focus on lesser-known, underground, underrated, or international artists
+- Artists adjacent to my taste but from unexpected angles, different scenes, or eras
+- Include artists from outside the US/UK where relevant
+- Every artist must exist on Spotify
+- Prioritize quality — critically acclaimed or cult favorites, not just obscure
+
+IMPORTANT: Respond with ONLY a valid JSON array of artist names. Example: ["Artist One", "Artist Two"]` }]);
+
+      dbg(`NEW-ARTISTS: LLM response length=${llmResponse.length}`);
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify...</div>';
+
+      const artists = parseJsonArray(llmResponse);
+      if (!artists) { result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>'; return; }
+      dbg(`NEW-ARTISTS: parsed ${artists.length} artists`);
+
+      const foundTracks = [];
+      const seenIds = new Set();
+      let filtered = 0, misses = 0;
+
+      for (const name of artists.slice(0, artistCount)) {
+        if (taste.knownArtists.has(name.toLowerCase())) { filtered++; continue; }
+        const trackResult = await spotifyApi(`/search?q=artist:${encodeURIComponent(name)}&type=track&limit=5&market=US`);
+        const tracks = trackResult?.tracks?.items || [];
+        if (!tracks.length) misses++;
+        for (const t of tracks) {
+          const key = (t.name + ' ' + (t.artists[0]?.name || '')).toLowerCase();
+          if (!taste.knownArtists.has(t.artists[0]?.name?.toLowerCase()) && !seenIds.has(t.id) && !taste.knownTracks.has(key)) {
+            seenIds.add(t.id);
+            foundTracks.push(t);
+          }
         }
+        if (foundTracks.length >= count) break;
+      }
 
-        // Fetch all liked songs for comprehensive filtering
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Loading your liked songs...</div>';
-        const savedItems = await fetchAllSavedTracks((n, total) => {
-          result.innerHTML = `<div class="typing"><div class="spinner"></div>Loading liked songs... ${n}/${total}</div>`;
-        });
-        dbg(`DISCOVER: fetched ${savedItems.length} saved tracks`);
+      dbg(`NEW-ARTISTS: filtered=${filtered}, misses=${misses}, found=${foundTracks.length}`);
+      // Shuffle so same-artist tracks aren't clustered
+      for (let i = foundTracks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [foundTracks[i], foundTracks[j]] = [foundTracks[j], foundTracks[i]];
+      }
+      renderGeneratedTracks(foundTracks.slice(0, count), result);
+    }
 
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Discovering music for you...</div>';
-        const [topArtistsLong, topArtistsMed, topArtistsShort, topTracksLong, topTracksMed, topTracksShort, recentlyPlayed] = await Promise.all([
-          spotifyApi('/me/top/artists?limit=50&time_range=long_term'),
-          spotifyApi('/me/top/artists?limit=50&time_range=medium_term'),
-          spotifyApi('/me/top/artists?limit=50&time_range=short_term'),
-          spotifyApi('/me/top/tracks?limit=50&time_range=long_term'),
-          spotifyApi('/me/top/tracks?limit=50&time_range=medium_term'),
-          spotifyApi('/me/top/tracks?limit=50&time_range=short_term'),
-          spotifyApi('/me/player/recently-played?limit=50'),
-        ]);
+    async function generateNewTracks(count, taste, result) {
+      const llmCount = Math.min(count * 2 + 20, 150);
+      result.innerHTML = `<div class="typing"><div class="spinner"></div>AI is picking ${count} tracks for you...</div>`;
 
-        const topItems = topArtistsLong?.items || [];
-        if (topItems.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">Not enough listening data yet!</p>';
-          return;
-        }
+      const llmResponse = await callLLM([{ role: 'user', content: `I want to discover new music. Here's my taste:
 
-        // Build comprehensive filter sets
-        const myTrackNames = new Set();
-        const knownArtistNames = new Set();
-        const addTrackData = (items) => (items || []).forEach(t => {
-          myTrackNames.add((t.name + ' ' + t.artists[0]?.name).toLowerCase());
-          t.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        });
-        addTrackData(topTracksLong?.items);
-        addTrackData(topTracksMed?.items);
-        addTrackData(topTracksShort?.items);
-        savedItems.forEach(i => {
-          myTrackNames.add((i.track.name + ' ' + (i.track.artists?.[0]?.name || '')).toLowerCase());
-          (i.track.artists || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        });
-        (recentlyPlayed?.items || []).forEach(i => {
-          myTrackNames.add((i.track.name + ' ' + i.track.artists[0]?.name).toLowerCase());
-          i.track.artists.forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        });
-        (topItems || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        (topArtistsMed?.items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
-        (topArtistsShort?.items || []).forEach(a => knownArtistNames.add(a.name.toLowerCase()));
+Top artists: ${taste.artistList}
+Recent tracks: ${taste.trackList}
 
-        // Build taste profile
-        const artistList = topItems.map(a => `${a.name} (${(a.genres || []).slice(0,2).join(', ')})`).join(', ');
-        const trackList = (topTracksLong?.items || []).slice(0, 20).map(t => `"${t.name}" by ${t.artists[0]?.name}`).join(', ');
-        const knownList = [...knownArtistNames].slice(0, 100).join(', ');
+Artists I ALREADY know (do NOT suggest songs by any of these): ${taste.knownList}
 
-        // Request significantly more from LLM to account for Spotify search failures
-        const llmCount = Math.min(count * 2 + 20, 150);
-
-        result.innerHTML = `<div class="typing"><div class="spinner"></div>AI is building your discovery playlist (${count} tracks)...</div>`;
-
-        // Ask LLM for track recommendations
-        const llmResponse = await callLLM([{
-          role: 'user',
-          content: `I want to discover new music. Here's my taste:
-
-Top artists: ${artistList}
-Recent tracks: ${trackList}
-
-Artists I ALREADY know (do NOT suggest songs by any of these): ${knownList}
-
-Suggest exactly ${llmCount} specific songs (track + artist) I should listen to. Rules:
-- NONE of the artists I listed as already known — this is critical, do not suggest anyone from that list
-- Also avoid songs that are commonly found on popular Spotify playlists (like Today's Top Hits, RapCaviar, etc.) — if a casual listener would recognize it, skip it
-- Prioritize QUALITY: critically acclaimed, fan-favorite deep cuts, songs with emotional impact or unique production — not just obscure for the sake of obscure
-- Each suggestion should be a genuinely great song that rewards the listener, not filler
+Suggest exactly ${llmCount} specific songs (track + artist). Rules:
+- NONE of the artists I listed as already known
+- Avoid songs commonly found on popular Spotify playlists — if a casual listener would recognize it, skip it
+- Prioritize QUALITY: critically acclaimed, fan-favorite deep cuts, songs with emotional impact or unique production
 - Mix of: underground artists, different decades, international music, cross-genre surprises
-- Every suggestion must be a real song that actually exists on Spotify
-- Be creative, surprising, and varied — dig deep into music history and global scenes
-- IMPORTANT: Never put more than 1 song by the same artist. Each artist should appear only once.
-- Vary the order — alternate between genres, decades, and regions so it never feels repetitive
-- Lean toward songs that have cult followings, strong critical reception, or are beloved within niche communities
+- Every suggestion must be a real song on Spotify
+- Max 1 song per artist. Vary genres, decades, regions.
+- Lean toward cult followings, strong critical reception, or beloved niche communities
 
-IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatsoever. Format:
-[{"track": "Song Name", "artist": "Artist Name"}, ...]`
-        }]);
+Respond with ONLY a valid JSON array: [{"track": "Song Name", "artist": "Artist Name"}, ...]` }]);
 
-        dbg(`DISCOVER: LLM response length=${llmResponse.length}, first 200 chars: ${llmResponse.slice(0, 200)}`);
-        result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for tracks...</div>';
+      dbg(`NEW-TRACKS: LLM response length=${llmResponse.length}`);
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for tracks...</div>';
 
-        // Parse LLM response — try to extract JSON robustly
-        let suggestions = [];
-        try {
-          const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
-          dbg(`DISCOVER: JSON match found=${!!jsonMatch}, match length=${jsonMatch?.[0]?.length || 0}`);
-          if (jsonMatch) suggestions = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          dbg(`DISCOVER: JSON parse failed: ${e.message}, trying fallback`);
-          // Try line-by-line fallback if JSON is slightly malformed
-          try {
-            const cleaned = llmResponse.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
-            suggestions = JSON.parse(cleaned);
-          } catch (e2) {
-            dbg(`DISCOVER: fallback parse also failed: ${e2.message}`);
-            result.innerHTML = `<p style="color:#ff4444;">AI response was malformed. Try again.</p>`;
-            return;
-          }
-        }
+      const suggestions = parseJsonArray(llmResponse);
+      if (!suggestions) { result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>'; return; }
+      dbg(`NEW-TRACKS: parsed ${suggestions.length} suggestions`);
 
-        dbg(`DISCOVER: parsed ${suggestions.length} suggestions from LLM`);
-        if (suggestions.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">AI returned no suggestions. Try again.</p>';
-          return;
-        }
+      const allTracks = [];
+      const seenIds = new Set();
+      const seenArtists = new Set();
+      let stats = { filteredKnown: 0, dupeArtist: 0, miss: 0, inLibrary: 0 };
 
-        // Search Spotify for each suggestion — 1 track per artist max
-        const allTracks = [];
-        const seenIds = new Set();
-        const seenArtistNames = new Set();
-        let discFilteredKnown = 0, discFilteredDupeArtist = 0, discSpotifyMiss = 0, discFilteredMyTrack = 0;
+      for (const s of suggestions) {
+        if (allTracks.length >= count) break;
+        if (!s.track || !s.artist) continue;
+        if (taste.knownArtists.has(s.artist.toLowerCase())) { stats.filteredKnown++; continue; }
+        if (seenArtists.has(s.artist.toLowerCase())) { stats.dupeArtist++; continue; }
 
-        for (const s of suggestions) {
-          if (allTracks.length >= count) break;
-          if (!s.track || !s.artist) continue;
-          if (knownArtistNames.has(s.artist.toLowerCase())) { discFilteredKnown++; continue; }
-          if (seenArtistNames.has(s.artist.toLowerCase())) { discFilteredDupeArtist++; continue; }
+        const track = await searchTrackOnSpotify(s.track, s.artist);
+        if (!track) { stats.miss++; continue; }
 
-          // Try exact search first, then broader fallback
-          let q = encodeURIComponent(`track:${s.track} artist:${s.artist}`);
-          let data = await spotifyApi(`/search?q=${q}&type=track&limit=3&market=US`);
-          let tracks = data?.tracks?.items || [];
+        const key = (track.name + ' ' + (track.artists[0]?.name || '')).toLowerCase();
+        if (taste.knownTracks.has(key)) { stats.inLibrary++; continue; }
+        if (seenIds.has(track.id)) continue;
 
-          // Fallback: simpler query if structured search finds nothing
-          if (tracks.length === 0) {
-            q = encodeURIComponent(`${s.track} ${s.artist}`);
-            data = await spotifyApi(`/search?q=${q}&type=track&limit=5&market=US`);
-            tracks = data?.tracks?.items || [];
-          }
+        seenIds.add(track.id);
+        seenArtists.add(s.artist.toLowerCase());
+        if (track.artists[0]) seenArtists.add(track.artists[0].name.toLowerCase());
+        allTracks.push(track);
 
-          if (tracks.length === 0) { discSpotifyMiss++; dbg(`DISCOVER: Spotify miss for "${s.track}" by "${s.artist}"`); }
-
-          // Pick the best match
-          const track = tracks.find(t =>
-            t.name.toLowerCase().includes(s.track.toLowerCase().slice(0, 10)) ||
-            t.artists.some(a => a.name.toLowerCase().includes(s.artist.toLowerCase().slice(0, 8)))
-          ) || tracks[0];
-
-          if (track && !seenIds.has(track.id) && !myTrackNames.has((track.name + ' ' + track.artists[0]?.name).toLowerCase())) {
-            seenIds.add(track.id);
-            seenArtistNames.add(s.artist.toLowerCase());
-            if (track.artists[0]) seenArtistNames.add(track.artists[0].name.toLowerCase());
-            allTracks.push(track);
-          } else if (track && myTrackNames.has((track.name + ' ' + track.artists[0]?.name).toLowerCase())) {
-            discFilteredMyTrack++;
-          }
-
-          // Update progress
-          if (allTracks.length % 10 === 0 && allTracks.length > 0) {
-            result.innerHTML = `<div class="typing"><div class="spinner"></div>Found ${allTracks.length}/${count} tracks so far...</div>`;
-          }
-        }
-
-        dbg(`DISCOVER: DONE. found=${allTracks.length}, filteredKnown=${discFilteredKnown}, dupeArtist=${discFilteredDupeArtist}, spotifyMiss=${discSpotifyMiss}, alreadyInLibrary=${discFilteredMyTrack}`);
-
-        if (allTracks.length === 0) {
-          result.innerHTML = '<p style="color:#ff4444;">No tracks found on Spotify. Try again for different suggestions.</p>';
-          return;
-        }
-
-        let html = `<p style="font-weight:700; font-size:15px; margin-bottom:4px;">Discovered ${allTracks.length} tracks</p>`;
-        html += `<p style="color:#b3b3b3; font-size:12px; margin-bottom:12px;">AI-curated based on your taste &middot; click + to stage</p>`;
-        html += `<div style="margin:12px 0;"><button class="btn btn-green btn-sm" onclick="saveResultsAsPlaylist('discover-result', 'Dannify Discover')">Save all as playlist</button></div>`;
-        html += allTracks.map(t => {
-          const uri = `spotify:track:${t.id}`;
-          const img = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
-          const isStaged = stagedTracks.some(s => s.uri === uri);
-          return `
-          <div class="track-suggestion ${isStaged ? 'added' : ''}" data-uri="${uri}" data-name="${esc(t.name)}" data-artist="${esc(t.artists[0]?.name || '')}" data-img="${img}" onclick="stageFromSuggestion(this)">
-            <img src="${img}" alt="" style="width:40px;height:40px;border-radius:4px;margin-right:10px;">
-            <div class="dupe-info">
-              <div class="dupe-name">${esc(t.name)}</div>
-              <div class="dupe-detail">${esc(t.artists.map(a => a.name).join(', '))} &middot; ${esc(t.album?.name || '')}</div>
-            </div>
-            <div class="ts-add" style="color:#1db954; font-size:20px; cursor:pointer;">${isStaged ? '&#10003;' : '+'}</div>
-          </div>`;
-        }).join('');
-
-        result.innerHTML = html;
-      } catch (err) {
-        if (err.message === 'NO_KEY') {
-          result.innerHTML = '<p style="color:#ff4444;">Set your LLM API key in Settings first.</p>';
-        } else {
-          result.innerHTML = `<p style="color:#ff4444;">Error: ${esc(err.message)}</p>`;
+        if (allTracks.length % 10 === 0) {
+          result.innerHTML = `<div class="typing"><div class="spinner"></div>Found ${allTracks.length}/${count} tracks...</div>`;
         }
       }
+
+      dbg(`NEW-TRACKS: found=${allTracks.length}, ${JSON.stringify(stats)}`);
+      renderGeneratedTracks(allTracks, result);
+    }
+
+    async function generateFromPrompt(count, taste, prompt, result) {
+      const llmCount = Math.min(count * 2 + 20, 150);
+      result.innerHTML = `<div class="typing"><div class="spinner"></div>AI is building a "${prompt}" playlist...</div>`;
+
+      const llmResponse = await callLLM([{ role: 'user', content: `Build me a playlist around this theme: "${prompt}"
+
+For context, my taste: ${taste.artistList.slice(0, 200)}
+
+Suggest exactly ${llmCount} specific songs (track + artist) that match the vibe. Rules:
+- Every song must genuinely fit the described theme/vibe
+- Prioritize QUALITY: well-regarded tracks that reward the listener
+- Mix of well-known gems and deep cuts that fit the vibe
+- Every song must exist on Spotify
+- Max 1 song per artist. Vary the selection.
+
+Respond with ONLY a valid JSON array: [{"track": "Song Name", "artist": "Artist Name"}, ...]` }]);
+
+      dbg(`FROM-PROMPT: LLM response length=${llmResponse.length}`);
+      result.innerHTML = '<div class="typing"><div class="spinner"></div>Searching Spotify for tracks...</div>';
+
+      const suggestions = parseJsonArray(llmResponse);
+      if (!suggestions) { result.innerHTML = '<p style="color:#ff4444;">AI response was malformed. Try again.</p>'; return; }
+      dbg(`FROM-PROMPT: parsed ${suggestions.length} suggestions`);
+
+      const allTracks = [];
+      const seenIds = new Set();
+      const seenArtists = new Set();
+
+      for (const s of suggestions) {
+        if (allTracks.length >= count) break;
+        if (!s.track || !s.artist) continue;
+        if (seenArtists.has(s.artist.toLowerCase())) continue;
+
+        const track = await searchTrackOnSpotify(s.track, s.artist);
+        if (!track || seenIds.has(track.id)) continue;
+
+        seenIds.add(track.id);
+        seenArtists.add(s.artist.toLowerCase());
+        if (track.artists[0]) seenArtists.add(track.artists[0].name.toLowerCase());
+        allTracks.push(track);
+
+        if (allTracks.length % 10 === 0) {
+          result.innerHTML = `<div class="typing"><div class="spinner"></div>Found ${allTracks.length}/${count} tracks...</div>`;
+        }
+      }
+
+      dbg(`FROM-PROMPT: found=${allTracks.length}`);
+      renderGeneratedTracks(allTracks, result);
     }
 
     // ---- Library ----
@@ -1763,12 +1756,31 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
       detail.style.display = 'flex';
 
       document.getElementById('lib-detail-img').src = pl.images?.[0]?.url || '';
-      document.getElementById('lib-detail-name').textContent = pl.name;
+      const nameEl = document.getElementById('lib-detail-name');
+      nameEl.textContent = pl.name;
+      nameEl.contentEditable = 'false';
+      const descEl = document.getElementById('lib-detail-desc');
+      descEl.textContent = pl.description || '';
+      descEl.contentEditable = 'false';
       document.getElementById('lib-detail-meta').textContent = `${pl.tracks?.total || 0} tracks · ${pl.owner?.display_name || ''}`;
 
-      // Only show delete for playlists user owns
       const isOwner = pl.owner?.id === userId;
+      const isEditable = isOwner || pl.collaborative;
       document.getElementById('lib-delete-btn').style.display = isOwner ? '' : 'none';
+      document.getElementById('lib-edit-bar').style.display = isEditable ? 'flex' : 'none';
+      document.getElementById('lib-search-row').style.display = isEditable ? 'flex' : 'none';
+      document.getElementById('lib-search-results').innerHTML = '';
+
+      // Editable name/description for owned playlists
+      if (isEditable) {
+        nameEl.contentEditable = 'true';
+        descEl.contentEditable = 'true';
+        nameEl.onblur = () => savePlaylistDetails();
+        nameEl.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } };
+        descEl.onblur = () => savePlaylistDetails();
+        descEl.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); descEl.blur(); } };
+        nameEl.addEventListener('paste', e => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); });
+      }
 
       const trackList = document.getElementById('lib-detail-tracks');
       trackList.innerHTML = '<div class="typing"><div class="spinner"></div>Loading tracks...</div>';
@@ -1777,10 +1789,10 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
 
       if (!items.length) {
         trackList.innerHTML = '<p style="color:#727272; padding:40px; text-align:center;">This playlist is empty.</p>';
+        document.getElementById('lib-detail-meta').textContent = `0 tracks · ${pl.owner?.display_name || ''}`;
         return;
       }
 
-      const isEditable = isOwner || pl.collaborative;
       trackList.innerHTML = items.map((item, i) => {
         const t = item.track;
         if (!t) return '';
@@ -1789,6 +1801,8 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
         const uri = t.uri || '';
         return `
         <div class="library-track" data-uri="${uri}" data-idx="${i}">
+          ${isEditable ? `<input type="checkbox" class="lt-check" onchange="libUpdateBulkBtn()">` : ''}
+          ${isEditable ? `<span class="lt-move" title="Move up" onclick="libMoveTrack('${playlistId}', ${i}, ${i - 1})">&#9650;</span><span class="lt-move" title="Move down" onclick="libMoveTrack('${playlistId}', ${i}, ${i + 1})">&#9660;</span>` : ''}
           <span class="lt-num">${i + 1}</span>
           <img src="${img}" alt="">
           <div class="lt-info">
@@ -1799,6 +1813,24 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
           ${isEditable ? `<span class="lt-remove" onclick="removeTrackFromPlaylist('${playlistId}', '${uri}', ${i}, this)" title="Remove">&#10005;</span>` : ''}
         </div>`;
       }).join('');
+
+      document.getElementById('lib-detail-meta').textContent = `${items.length} tracks · ${pl.owner?.display_name || ''}`;
+    }
+
+    async function savePlaylistDetails() {
+      if (!currentLibraryPlaylist) return;
+      const newName = document.getElementById('lib-detail-name').textContent.trim();
+      const newDesc = document.getElementById('lib-detail-desc').textContent.trim();
+      if (!newName) return;
+      if (newName === currentLibraryPlaylist.name && newDesc === (currentLibraryPlaylist.description || '')) return;
+      await spotifyApi(`/playlists/${currentLibraryPlaylist.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: newName, description: newDesc }),
+      });
+      currentLibraryPlaylist.name = newName;
+      currentLibraryPlaylist.description = newDesc;
+      libraryLoaded = false;
+      toast('Playlist updated');
     }
 
     function closeLibraryDetail() {
@@ -1808,25 +1840,125 @@ IMPORTANT: Respond with ONLY a valid JSON array of objects, no other text whatso
     }
 
     async function removeTrackFromPlaylist(playlistId, uri, position, el) {
-      if (!confirm('Remove this track?')) return;
-      const res = await spotifyApi(`/playlists/${playlistId}/tracks`, {
+      const res = await spotifyApi(`/playlists/${playlistId}/items`, {
         method: 'DELETE',
         body: JSON.stringify({ tracks: [{ uri, positions: [position] }] }),
       });
       if (res?.snapshot_id) {
         el.closest('.library-track').remove();
-        // Re-number remaining tracks
         document.querySelectorAll('#lib-detail-tracks .library-track').forEach((row, i) => {
           row.querySelector('.lt-num').textContent = i + 1;
           row.dataset.idx = i;
         });
-        const meta = document.getElementById('lib-detail-meta');
         const count = document.querySelectorAll('#lib-detail-tracks .library-track').length;
-        meta.textContent = `${count} tracks · ${currentLibraryPlaylist?.owner?.display_name || ''}`;
+        document.getElementById('lib-detail-meta').textContent = `${count} tracks · ${currentLibraryPlaylist?.owner?.display_name || ''}`;
         toast('Track removed');
       } else {
         toast('Failed to remove track');
       }
+    }
+
+    // Bulk select
+    function libSelectAll() {
+      document.querySelectorAll('#lib-detail-tracks .lt-check').forEach(cb => cb.checked = true);
+      libUpdateBulkBtn();
+    }
+    function libSelectNone() {
+      document.querySelectorAll('#lib-detail-tracks .lt-check').forEach(cb => cb.checked = false);
+      libUpdateBulkBtn();
+    }
+    function libUpdateBulkBtn() {
+      const n = document.querySelectorAll('#lib-detail-tracks .lt-check:checked').length;
+      const btn = document.getElementById('lib-edit-bar')?.querySelector('.btn-red');
+      if (btn) { btn.style.display = n > 0 ? '' : 'none'; btn.textContent = `Remove selected (${n})`; }
+    }
+    async function libRemoveSelected() {
+      if (!currentLibraryPlaylist) return;
+      const checked = document.querySelectorAll('#lib-detail-tracks .lt-check:checked');
+      if (!checked.length) return;
+      if (!confirm(`Remove ${checked.length} tracks?`)) return;
+      const tracks = Array.from(checked).map(cb => {
+        const row = cb.closest('.library-track');
+        return { uri: row.dataset.uri, positions: [parseInt(row.dataset.idx, 10)] };
+      }).sort((a, b) => b.positions[0] - a.positions[0]);
+      for (let i = 0; i < tracks.length; i += 100) {
+        await spotifyApi(`/playlists/${currentLibraryPlaylist.id}/items`, {
+          method: 'DELETE',
+          body: JSON.stringify({ tracks: tracks.slice(i, i + 100) }),
+        });
+      }
+      toast(`Removed ${tracks.length} tracks`);
+      openLibraryPlaylist(currentLibraryPlaylist.id);
+    }
+
+    // Deduplicate
+    async function libDeduplicateTracks() {
+      if (!currentLibraryPlaylist) return;
+      const items = await fetchAllPlaylistTracks(currentLibraryPlaylist.id);
+      const seen = new Set();
+      const dupes = [];
+      items.forEach((item, i) => {
+        const id = item.track?.id;
+        if (!id) return;
+        if (seen.has(id)) dupes.push({ uri: item.track.uri, positions: [i] });
+        else seen.add(id);
+      });
+      if (!dupes.length) { toast('No duplicates found'); return; }
+      if (!confirm(`Found ${dupes.length} duplicate tracks. Remove them?`)) return;
+      dupes.sort((a, b) => b.positions[0] - a.positions[0]);
+      for (let i = 0; i < dupes.length; i += 100) {
+        await spotifyApi(`/playlists/${currentLibraryPlaylist.id}/items`, {
+          method: 'DELETE',
+          body: JSON.stringify({ tracks: dupes.slice(i, i + 100) }),
+        });
+      }
+      toast(`Removed ${dupes.length} duplicates`);
+      openLibraryPlaylist(currentLibraryPlaylist.id);
+    }
+
+    // Move track up/down
+    async function libMoveTrack(playlistId, fromIdx, toIdx) {
+      if (toIdx < 0) return;
+      const trackCount = document.querySelectorAll('#lib-detail-tracks .library-track').length;
+      if (toIdx >= trackCount) return;
+      await spotifyApi(`/playlists/${playlistId}/items`, {
+        method: 'PUT',
+        body: JSON.stringify({ range_start: fromIdx, insert_before: toIdx > fromIdx ? toIdx + 1 : toIdx, range_length: 1 }),
+      });
+      openLibraryPlaylist(playlistId);
+    }
+
+    // Search + add tracks
+    async function libSearchTracks() {
+      const q = document.getElementById('lib-search-input').value.trim();
+      if (!q || !currentLibraryPlaylist) return;
+      const container = document.getElementById('lib-search-results');
+      container.innerHTML = '<div class="typing" style="padding:8px;"><div class="spinner"></div>Searching...</div>';
+      const data = await spotifyApi(`/search?q=${encodeURIComponent(q)}&type=track&limit=10&market=US`);
+      const tracks = data?.tracks?.items || [];
+      if (!tracks.length) { container.innerHTML = '<p style="padding:8px; color:#727272; font-size:12px;">No results</p>'; return; }
+      container.innerHTML = tracks.map(t => {
+        const img = t.album?.images?.[2]?.url || '';
+        return `<div class="search-track" onclick="libAddTrack('${t.uri}', this)">
+          <img src="${img}" alt=""><div class="st-info"><div class="st-name">${esc(t.name)}</div><div class="st-artist">${esc(t.artists.map(a => a.name).join(', '))}</div></div>
+          <span class="st-add">+</span></div>`;
+      }).join('');
+    }
+    document.getElementById('lib-search-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') libSearchTracks(); });
+
+    async function libAddTrack(uri, el) {
+      if (!currentLibraryPlaylist) return;
+      const res = await spotifyApi(`/playlists/${currentLibraryPlaylist.id}/items`, {
+        method: 'POST',
+        body: JSON.stringify({ uris: [uri] }),
+      });
+      if (res?.snapshot_id) {
+        el.querySelector('.st-add').innerHTML = '&#10003;';
+        el.style.opacity = '0.5';
+        el.onclick = null;
+        toast('Track added');
+        openLibraryPlaylist(currentLibraryPlaylist.id);
+      } else { toast('Failed to add track'); }
     }
 
     async function deletePlaylistById(playlistId, name) {
